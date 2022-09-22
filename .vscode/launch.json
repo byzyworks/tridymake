@@ -1,0 +1,51 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Test File (Development)",
+            "program": "${workspaceFolder}/src/app.js",
+            "cwd": "${workspaceFolder}/",
+            "args": ["make", "--file", "src/tests/_debug/test.tri", "--log-level", "debug"],
+            "outputCapture": "std",
+            "console": "externalTerminal",
+            "env": {
+                "NODE_ENV": "development"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Test File (Production)",
+            "program": "${workspaceFolder}/src/app.js",
+            "cwd": "${workspaceFolder}/",
+            "args": ["make", "--file", "src/tests/_debug/test.tri"],
+            "outputCapture": "std",
+            "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Test Console (Development)",
+            "program": "${workspaceFolder}/src/app.js",
+            "cwd": "${workspaceFolder}/",
+            "args": ["tell", "--file", "src/tests/_debug/test.tri", "--log-level", "debug"],
+            "outputCapture": "std",
+            "console": "externalTerminal",
+            "env": {
+                "NODE_ENV": "development"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Test Console (Production)",
+            "program": "${workspaceFolder}/src/app.js",
+            "cwd": "${workspaceFolder}/",
+            "args": ["tell", "--file", "src/tests/_debug/test.tri"],
+            "outputCapture": "std",
+            "console": "externalTerminal"
+        }
+    ]
+}
