@@ -3,14 +3,14 @@ import { logger }    from './logger.js';
 
 export class BaseError extends Error {
     constructor(description, opts = { }) {
-        this.is_warning = opts.is_warning ?? false;
-        this.is_fatal   = opts.is_fatal   ?? false;
-
         if (new.target === BaseError) {
             throw new Error(`Tried to instantiate abstract class.`);
         }
 
         super(description, opts);
+
+        this.is_warning = opts.is_warning ?? false;
+        this.is_fatal   = opts.is_fatal   ?? false;
     }
 }
 
@@ -34,7 +34,7 @@ export class ErrorHandler {
     static handle(err) {
         if ((err instanceof Error) && (process.exitCode === 0)) {
             try {
-                if ((err instanceof BaseError) && (err.opts.is_warning === true)) {
+                if ((err instanceof BaseError) && (err.is_warning === true)) {
                     logger.warn(err.message);
                 } else {
                     logger.error(err.message);
@@ -43,7 +43,7 @@ export class ErrorHandler {
                     logger.debug(err.stack);
                 }
             } finally {
-                if (!(err instanceof BaseError) || (err.opts.is_fatal === true)) {
+                if (!(err instanceof BaseError) || (err.is_fatal === true)) {
                     logger.end();
                     process.exitCode = 1;
                 }

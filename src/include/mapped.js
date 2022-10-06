@@ -38,8 +38,8 @@ export const GENERAL_SYNTAX_MAP = Object.freeze({
     EMPLACEMENT_LEFT:     '<-',
     EMPLACEMENT_RIGHT:    '->',
     STRICT_KEYWORD_START: '@',
-    CONTEXT_START:        '{',
-    CONTEXT_END:          '}',
+    CONTEXT_START:        '(',
+    CONTEXT_END:          ')',
     METADATA_START:       '[',
     METADATA_END:         ']',
     FUNCTION_START:       '(',
@@ -47,18 +47,18 @@ export const GENERAL_SYNTAX_MAP = Object.freeze({
     NESTED_START:         '{',
     NESTED_END:           '}',
     STRING_DELIMITER: {
-        PLAIN:     "'",
+        LINE:      "'",
         MAGIC:     '"',
         MULTILINE: '`'
     },
+    ESCAPE:        '\\',
     STATEMENT_END: ';',
     COMMENT_START: '#',
 });
 
 export const REGEX_MAP = Object.freeze({
     UNQUOTED: '^[A-Za-z0-9_]+$',
-    SYMBOL:   '^[~!$%^&*()-=+\[\]{}|;:,<.>?/]$',
-    ESCAPE:   '^[\\]$'
+    SYMBOL:   '[~!$%^&*()-=+\\[\\]{}|;:,<.>?\\/]'
 });
 
 export const TOKEN_KEY_MAP = Object.freeze({
@@ -70,14 +70,14 @@ export const TOKEN_KEY_MAP = Object.freeze({
     STRICT_KEYWORD: 'key',
     STRING: {
         UNQUOTED:  'str',
-        PLAIN:     'sqstr',
+        LINE:      'sqstr',
         MAGIC:     'dqstr',
         MULTILINE: 'btstr',
     },
     CONTEXT: {
         LITERAL:       'val',
         VARIABLE:      'var',
-        FUNCTION:      'fun',
+        FUNCTION:      'func',
         TAGLIKE:       'tag',
         OPERATION:     'op',
         MISCELLANEOUS: 'misc'
@@ -201,12 +201,8 @@ export const OPERATION_MAP = Object.freeze({
     ACCESS_CONTEXT:       'in',
     CONDITION_EXISTS:     'if',
     CONDITION_NOT_EXISTS: 'unless',
-    CONDITION_ELSE:       'else',
     SWITCH_START:         'switch',
-    SWITCH_CASE:          'case',
-    SWITCH_DEFAULT:       'default',
     LOOP_START:           'for',
-    LOOP_SOURCE:          'of',
     CONTROL_CONTINUE:     'continue',
     CONTROL_BREAK:        'break',
     CONSOLE_STATISTICS:   'stat',
@@ -214,8 +210,17 @@ export const OPERATION_MAP = Object.freeze({
     CONSOLE_EXIT:         'exit'
 });
 
-export const EXPLICIT_TRUE      = 'true';
-export const EXPLICIT_FALSE     = 'false';
-export const EXPLICIT_NAN       = 'fact';
-export const EXPLICIT_NULL      = 'null';
-export const EXPLICIT_UNDEFINED = 'none';
+export const META_OPERATION_MAP = Object.freeze({
+    CONDITION_ELSE:       'else',
+    SWITCH_CASE:          'case',
+    SWITCH_DEFAULT:       'default',
+    LOOP_SOURCE:          'of'
+});
+
+export const VALUE_MAP = Object.freeze({
+    TRUE:      'true',
+    FALSE:     'false',
+    NAN:       'fact',
+    NULL:      'null',
+    UNDEFINED: 'none'
+});

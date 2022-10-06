@@ -9,9 +9,8 @@ import { ErrorHandler }                   from './include/error.js';
 import { transports, logger, log_levels } from './include/logger.js';
 import * as mapped                        from './include/mapped.js';
 
-//import { db }         from './database.js';
-//import { cli }        from './console.js';
-//import { queryFiles } from './files.js';
+import { db }  from './database.js';
+import { cli } from './console.js';
 
 process.exitCode = 0;
 
@@ -91,20 +90,22 @@ program
         }
 
         if (opts.command) {
-            //await db.query(opts.command, { accept_carry: false });
+            await db.query(opts.command, { accept_carry: false });
         } else if (opts.file) {
             for (let filepath of opts.file) {
                 filepath = path.join(mapped.APP.ROOT, filepath);
 
+                let input;
+
                 try {
-                    const input = await fs.promises.readFile(filepath, 'utf-8');
+                    input = await fs.promises.readFile(filepath, 'utf-8');
                 } catch (err) {
                     ErrorHandler.handle(err);
 
                     continue;
                 }
         
-                //await db.query(input, { accept_carry: false, filepath: path.resolve(filepath) });
+                await db.query(input, { accept_carry: false, filepath: path.resolve(filepath) });
             }
         }
     })
@@ -125,7 +126,7 @@ program
 program
     .command('tell')
     .description('Start an interactive console session.')
-    //.action(async (opts, command) => await cli(command.optsWithGlobals()))
+    .action(async (opts, command) => await cli(command.optsWithGlobals()))
 ;
 
 program.parse(process.argv);
