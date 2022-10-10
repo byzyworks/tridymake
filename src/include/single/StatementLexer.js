@@ -2,6 +2,7 @@ import { TokenLexer } from './TokenLexer.js';
 
 import { isEmpty }     from '../common.js';
 import { SyntaxError } from '../error.js';
+import * as mapped     from '../mapped.js';
 
 import { Token } from '../instance/Token.js';
 
@@ -65,17 +66,17 @@ export class StatementLexer {
              * Also, start at 0 instead of this._carry.length, as there may be complete statements inside the carry that need to be run first.
              * This parser only goes one statement at a time, and one input might have many.
              */
-            if (pool[idx].is('sym', '{')) {
+            if (pool[idx].is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.NESTED_START)) {
                 this._last_depth++;
-            } else if (pool[idx].is('sym', '}')) {
+            } else if (pool[idx].is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.NESTED_END)) {
                 this._last_depth--;
 
                 if (this._last_depth < 0) {
-                    throw new SyntaxError(Token.getPosString(pool[idx].debug) + `: Unexpected token "}".`);
+                    throw new SyntaxError(Token.getPosString(pool[idx].debug) + `: Unexpected token "${mapped.GENERAL_SYNTAX_MAP.NESTED_END}".`);
                 }
             }
 
-            if (pool[idx].is('sym', ';')) {
+            if (pool[idx].isStatementEndToken()) {
                 this._last_ended = true;
             } else {
                 this._last_ended = false;
@@ -111,7 +112,7 @@ export class StatementLexer {
         const tokens = this._readNext();
 
         if (!opts.accept_carry && this.isCarrying()) {
-            throw new SyntaxError(`The input given contains an incomplete statement (missing final ";" or "}").`);
+            throw new SyntaxError(`The input given contains an incomplete statement (missing final "${mapped.GENERAL_SYNTAX_MAP.STATEMENT_END}" or "${mapped.GENERAL_SYNTAX_MAP.NESTED_END}").`);
         }
 
         // Clearing is done so the line and col can be made with respect to any new statement that comes next.

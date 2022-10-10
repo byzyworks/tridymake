@@ -5,7 +5,7 @@
  */
 
 //import { Composer }       from './Composer.js';
-//import { SyntaxParser }   from './SyntaxParser.js';
+import { SyntaxParser }   from './SyntaxParser.js';
 import { StatementLexer } from './StatementLexer.js';
 
 //import * as common from '../common.js';
@@ -31,7 +31,7 @@ export class Tridy {
      */
     constructor() {
         this._lexer    = new StatementLexer();
-        //this._parser   = new SyntaxParser();
+        this._parser   = new SyntaxParser();
         //this._composer = new Composer();
     }
 
@@ -54,16 +54,16 @@ export class Tridy {
         opts.filepath     = opts.filepath     ?? null;
 
         let tokens;
-        //let astree;
+        let astree;
 
         this._lexer.load(input, { filepath: opts.filepath });
 
         while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
-            console.log(JSON.stringify(tokens, null, 4)); // DEBUG
-
-            /*
             astree = await this._parser.parse(tokens);
+
+            console.log(JSON.stringify(astree, null, 4)); // DEBUG
             
+            /*
             if (mapped.global.flags.exit === true) {
                 if ((opts.filepath !== null) || !opts.interactive) {
                     mapped.global.flags.exit = false;

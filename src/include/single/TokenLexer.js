@@ -12,6 +12,34 @@ export class TokenLexer {
         this._lexer   = new CharLexer();
         this._mode    = new Stack();
         this._current = null;
+
+        this._initSymbols();
+    }
+
+    _initSymbols() {
+        const multi_symbol = new RegExp(`^${mapped.REGEX_MAP.SYMBOL}{2,}$`);
+        const sources = [
+            mapped.GENERAL_SYNTAX_MAP,
+            mapped.CONTEXT_MAP
+        ];
+        this._symbols = [ ];
+
+        // Speeds up selection since some of the sources may contain non-symbols.
+        for (const source of sources) {
+            for (const symbol of Object.values(source)) {
+                if (multi_symbol.test(symbol)) {
+                    this._symbols.push(symbol);
+                }
+            }
+        }
+
+        /**
+         * Ensures the longest symbols are tested first.
+         * Required for the selection algorithm below to work.
+         */
+        this._symbols.sort((a, b) => {
+            return b.length - a.length;
+        });
     }
 
     load(input, opts = { }) {
@@ -50,11 +78,65 @@ export class TokenLexer {
 
     _readWhilePred(pred) {
         let str = '';
+
         while (!this._lexer.isEOF() && pred(this._lexer.peek())) {
             str += this._lexer.next();
         }
 
         return str;
+    }
+
+    _readAgainst(test) {
+        let str = '';
+
+        for (let i = 0; i < test.length; i++) {
+            const tested = this._lexer.peek();
+
+            if (this._lexer.isEOF() || (test[i] !== tested)) {
+                for (let j = i; j > 0; j--) {
+                    this._lexer.prev();
+                }
+
+                break;
+            }
+
+            str += this._lexer.next();
+        }
+
+        return str;
+    }
+
+    _readSymbols() {
+        const pos = this._lexer.getPos();
+
+        let candidate = '';
+
+        for (const symbol of this._symbols) {
+            candidate = this._readAgainst(symbol);
+
+            if (candidate === symbol) {
+                break;
+            }
+        }
+
+        /**
+         * Accounts for symbols not explicitly in the sources.
+         * (In that case, not valid syntax, but still "symbols").
+         */
+        if (candidate === '') {
+            candidate = this._lexer.next();
+        }
+
+        return new Token(mapped.TOKEN_KEY_MAP.SYMBOL, candidate, pos);
+    }
+
+    _readWord() {
+        const pos = this._lexer.getPos();
+
+        const valid_word = new RegExp(mapped.REGEX_MAP.UNQUOTED);
+        let word         = this._readWhilePred(valid_word.test.bind(valid_word));
+
+        return new Token(mapped.TOKEN_KEY_MAP.STRING.UNQUOTED, word, pos);
     }
 
     _readWhileEscaped() {
@@ -124,95 +206,6 @@ export class TokenLexer {
         return str;
     }
 
-    _readStrictKeyword() {
-        const pos = this._lexer.getPos();
-        this._lexer.next();
-
-        const valid_word = new RegExp(mapped.REGEX_MAP.UNQUOTED);
-        const keyword    = this._readWhilePred(valid_word.test.bind(valid_word)).toLowerCase();
-
-        return new Token(mapped.TOKEN_KEY_MAP.STRICT_KEYWORD, keyword, pos);
-    }
-
-    _readWord() {
-        const pos = this._lexer.getPos();
-
-        const valid_word = new RegExp(mapped.REGEX_MAP.UNQUOTED);
-        let word         = this._readWhilePred(valid_word.test.bind(valid_word));
-
-        if (!isNaN(word)) {
-            word = Number(word);
-
-            if (Number.isInteger(word)) {
-                return new Token(mapped.TOKEN_KEY_MAP.NUMBER.INTEGER, word, pos);
-            }
-            return new Token(mapped.TOKEN_KEY_MAP.NUMBER.FLOATING_POINT, word, pos);
-        }
-        return new Token(mapped.TOKEN_KEY_MAP.STRING.UNQUOTED, word, pos);
-    }
-
-    _readSymbols() {
-        const pos = this._lexer.getPos();
-        
-        const multi_symbol = new RegExp(`^${mapped.REGEX_MAP.SYMBOL}{2,}$`);
-        const sources = [
-            mapped.GENERAL_SYNTAX_MAP,
-            mapped.CONTEXT_MAP
-        ];
-        const symbols = [ ];
-
-        // Speeds up selection since some of the sources may contain non-symbols.
-        for (const source of sources) {
-            for (const symbol of Object.values(source)) {
-                if (multi_symbol.test(symbol)) {
-                    symbols.push(symbol);
-                }
-            }
-        }
-
-        /**
-         * Ensures the longest symbols are tested first.
-         * Required for the selection algorithm below to work.
-         */
-        symbols.sort((a, b) => {
-            return b.length - a.length;
-        });
-        
-        let candidate = '';
-
-        for (const symbol of symbols) {
-            candidate = '';
-
-            for (let i = 0; i < symbol.length; i++) {
-                const tested = this._lexer.peek();
-
-                if (symbol[i] !== tested) {
-                    for (let j = i; j > 0; j--) {
-                        this._lexer.prev();
-                    }
-
-                    break;
-                }
-
-                candidate += this._lexer.next();
-            }
-
-            if (candidate === symbol) {
-                break;
-            }
-        }
-
-        /**
-         * Accounts for symbols not explicitly in the sources.
-         * (In that case, not valid syntax, but still "symbols").
-         */
-        if (candidate === '') {
-            candidate = this._lexer.next();
-        }
-
-        return new Token(mapped.TOKEN_KEY_MAP.SYMBOL, candidate, pos);
-    }
-
     _readRaw() {
         const pos = this._lexer.getPos();
 
@@ -252,16 +245,12 @@ export class TokenLexer {
             this._mode.pop();
         }
 
-        if (ch === mapped.GENERAL_SYNTAX_MAP.STRICT_KEYWORD_START) {
-            return this._readStrictKeyword();
+        if ((new RegExp(mapped.REGEX_MAP.SYMBOL)).test(ch)) {
+            return this._readSymbols();
         }
 
         if ((new RegExp(mapped.REGEX_MAP.UNQUOTED)).test(ch)) {
             return this._readWord();
-        }
-
-        if ((new RegExp(mapped.REGEX_MAP.SYMBOL)).test(ch)) {
-            return this._readSymbols();
         }
 
         if (ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.LINE) {

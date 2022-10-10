@@ -17,7 +17,7 @@ export const global = {
         clear: false,
         exit:  false
     },
-    include:   [
+    include: [
         './functions'
     ],
     log_level: 'info'
@@ -29,23 +29,23 @@ export const varmap = [ ];
 export const MODULE_KEY_MAP = Object.freeze({
     METADATA: 'meta',
     DATA:     'data',
-    TREE:     'tree'
+    NESTED:   'tree'
 });
 
 export const GENERAL_SYNTAX_MAP = Object.freeze({
-    ASSIGNMENT:           '=',
-    DELIMITER:            ',',
-    EMPLACEMENT_LEFT:     '<-',
-    EMPLACEMENT_RIGHT:    '->',
-    STRICT_KEYWORD_START: '@',
-    CONTEXT_START:        '(',
-    CONTEXT_END:          ')',
-    METADATA_START:       '[',
-    METADATA_END:         ']',
-    FUNCTION_START:       '(',
-    FUNCTION_END:         ')',
-    NESTED_START:         '{',
-    NESTED_END:           '}',
+    ASSIGNMENT:          '=',
+    DELIMITER:           ',',
+    EMPLACEMENT:         ':',
+    CONTEXT_START:       '(',
+    CONTEXT_END:         ')',
+    CONTEXT_VALUE_START: '[',
+    CONTEXT_VALUE_END:   ']',
+    METADATA_START:      '[',
+    METADATA_END:        ']',
+    FUNCTION_START:      '(',
+    FUNCTION_END:        ')',
+    NESTED_START:        '{',
+    NESTED_END:          '}',
     STRING_DELIMITER: {
         LINE:      "'",
         MAGIC:     '"',
@@ -57,22 +57,15 @@ export const GENERAL_SYNTAX_MAP = Object.freeze({
 });
 
 export const REGEX_MAP = Object.freeze({
-    UNQUOTED: '^[A-Za-z0-9_]+$',
-    SYMBOL:   '[~!$%^&*()-=+\\[\\]{}|;:,<.>?\\/]'
+    UNQUOTED: '^[A-Za-z0-9_.]+$',
+    SYMBOL:   '[~!$%^&*()-=+\\[\\]{}|;:,<>?\\/]'
 });
 
 export const TOKEN_KEY_MAP = Object.freeze({
     SYMBOL: 'sym',
-    NUMBER: {
-        INTEGER:        'int',
-        FLOATING_POINT: 'float'
-    },
-    STRICT_KEYWORD: 'key',
     STRING: {
-        UNQUOTED:  'str',
-        LINE:      'sqstr',
-        MAGIC:     'dqstr',
-        MULTILINE: 'btstr',
+        UNQUOTED: 'str',
+        QUOTED:   'qstr',
     },
     CONTEXT: {
         LITERAL:       'val',
@@ -127,27 +120,27 @@ export const CONTEXT_MAP = Object.freeze({
     FORWARD_TRANSITION_LONG:                      'to',
     FORWARD_TRANSITION:                           '/',
     CHAINED_FORWARD_TRANSITION_LONG:              'tochain',
-    CHAINED_FORWARD_TRANSITION:                   '/~',
+    CHAINED_FORWARD_TRANSITION:                   '//',
     RECURSIVE_FORWARD_TRANSITION_LONG:            'toall',
-    RECURSIVE_FORWARD_TRANSITION:                 '//',
+    RECURSIVE_FORWARD_TRANSITION:                 '/~',
     BACKWARD_TRANSITION_LONG:                     'back',
     BACKWARD_TRANSITION:                          '%',
     CHAINED_BACKWARD_TRANSITION_LONG:             'backchain',
-    CHAINED_BACKWARD_TRANSITION:                  '%~',
+    CHAINED_BACKWARD_TRANSITION:                  '%%',
     RECURSIVE_BACKWARD_TRANSITION_LONG:           'backall',
-    RECURSIVE_BACKWARD_TRANSITION:                '%%',
+    RECURSIVE_BACKWARD_TRANSITION:                '%~',
     INCLUSIVE_FORWARD_TRANSITION_LONG:            'andto',
     INCLUSIVE_FORWARD_TRANSITION:                 '&/',
     INCLUSIVE_CHAINED_FORWARD_TRANSITION_LONG:    'andtochain',
-    INCLUSIVE_CHAINED_FORWARD_TRANSITION:         '&/~',
+    INCLUSIVE_CHAINED_FORWARD_TRANSITION:         '&//',
     INCLUSIVE_RECURSIVE_FORWARD_TRANSITION_LONG:  'andtoall',
-    INCLUSIVE_RECURSIVE_FORWARD_TRANSITION:       '&//',
+    INCLUSIVE_RECURSIVE_FORWARD_TRANSITION:       '&/~',
     INCLUSIVE_BACKWARD_TRANSITION_LONG:           'andback',
     INCLUSIVE_BACKWARD_TRANSITION:                '&%',
     INCLUSIVE_CHAINED_BACKWARD_TRANSITION_LONG:   'andbackchain',
-    INCLUSIVE_CHAINED_BACKWARD_TRANSITION:        '&%~',
+    INCLUSIVE_CHAINED_BACKWARD_TRANSITION:        '&%%',
     INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION_LONG: 'andbackall',
-    INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION:      '&%%',
+    INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION:      '&%~',
     VALUE_SYMBOL:                                 VALUE_SYMBOL,
     EQUAL_TO_LONG:                                'eq',
     EQUAL_TO:                                     '==',

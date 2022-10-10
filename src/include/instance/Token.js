@@ -285,6 +285,20 @@ export class Token {
         ;
     }
 
+    isStatementEndToken() {
+        return false ||
+            this.is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.STATEMENT_END) ||
+            this.is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.NESTED_END)
+        ;
+    }
+
+    isSocketEndToken() {
+        return false ||
+            this.isStatementEndToken() ||
+            this.is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.EMPLACEMENT)
+        ;
+    }
+
     /**
      * Using this as opposed to just creating a new token with the same type and value is useful because the debug information remains the same as the token created from.
      * This is useful for creating program-internal tokens that, when there is a problem related to them, the debug output can link back to the user-created token it was generated from.
