@@ -1,102 +1,718 @@
-//import { ContextParser } from './ContextParser.js';
+import { ExpressionParser } from './ExpressionParser.js';
 
 import * as common from '../common.js';
 import * as error  from '../error.js';
 import * as mapped from '../mapped.js';
 
-import { List }      from '../instance/List.js';
-import { StateTree } from '../instance/StateTree.js';
-import { Token }     from '../instance/Token.js';
+import { Token } from '../instance/lexing/Token.js';
+
+import { FunctionNode }    from '../instance/parsing/FunctionNode.js';
+import { OperationNode }   from '../instance/parsing/OperationNode.js';
+import { Tag }             from '../instance/parsing/Tag.js';
+import { ValueExpression } from '../instance/parsing/ValueExpression.js';
+import { Variable }        from '../instance/parsing/Variable.js';
+
+import { List } from '../instance/List.js';
+import { Tree } from '../instance/Tree.js';
 
 export class SyntaxParser {
+    _EMPTY_RETURN  = Symbol();
+    _DEBUG_MESSAGE = Object.freeze({
+        WORD:     `unquoted string or number [-A-Za-z0-9_+.]`,
+        STRING:   [ `unquoted string or number [-A-Za-z0-9_+.]`, `quoted string`, `variable call (stored/unstored)`, `function call` ],
+        MAPPING:  [ `variable call (stored/unstored)`, `function call` ],
+        KEYVALUE: {
+            END: [ mapped.GENERAL_SYNTAX.ASSIGNMENT, mapped.GENERAL_SYNTAX.DELIMITER, mapped.GENERAL_SYNTAX.KEYVALUE_END ]
+        },
+        EXPRESSION: {
+            START: `expression operand`,
+            END:   [ `expression operand`, `expression operator`, mapped.EXPRESSION.RIGHT_PARENTHESES ]
+        }
+    });
+    
     constructor() { }
 
-    _handleUnexpected(description = null) {
+    _handleUnexpected(opts = { }) {
+        opts.description = opts.description ?? null;
+        opts.expected    = opts.expected    ?? [ ];
+
         const token = this._tokens.peek();
-        if (description === null) {
-            throw new error.SyntaxError(Token.getPosString(token.debug) + `: Unexpected token "${token.debug.val}".`);
+        const debug = Token.getPosString(token.debug);
+        let   desc  = '';
+
+        if (opts.description === null) {
+            desc += `Unexpected token "${token.debug.value}".`;
+            if (!common.isEmpty(opts.expected)) {
+                desc += ` Expected: `;
+                if (common.isArray(opts.expected)) {
+                    for (let i = 0; i < opts.expected.length; i++) {
+                        desc += `"${opts.expected[i]}"`;
+                        if (i !== (opts.expected.length - 1)) {
+                            desc += ", ";
+                        }
+                    }
+                } else {
+                    desc += `"${opts.expected}"`;
+                }
+            }
         } else {
-            throw new error.SyntaxError(Token.getPosString(token.debug) + `: ${description}`);
+            desc = opts.description;
         }
+
+        throw new error.SyntaxError(`${debug}: ${desc}`);
     }
 
-    async _handleOperation() {
-        // DEBUG
-        this._astree.enterSetAndLeave('operation', this._tokens.peek().val);
+    _readWhileValueExpression(collect) {
         let current = this._tokens.peek();
-        while (!current.isSocketEndToken()) {
-            this._tokens.next();
-            current = this._tokens.peek();
+        if (!current.is(null, mapped.EXPRESSION.VALUE_EXPRESSION_START)) {
+            this._handleUnexpected({ expected: mapped.EXPRESSION.VALUE_EXPRESSION_START });
         }
+
+        this._tokens.next();
+
+        let lhs;
+        let op;
+        let rhs;
+
+        lhs = this._readWhileStringFeed();
+        if (lhs === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+        }
+
+        current = this._tokens.peek();
+        if (current.isBinaryValueOperatorExpressionToken()) {
+            op = current;
+            this._tokens.next();
+
+            rhs = this._readWhileStringFeed();
+            if (rhs === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+            }
+        }
+
+        current = this._tokens.peek();
+        if (!current.is(null, mapped.EXPRESSION.VALUE_EXPRESSION_END)) {
+            this._handleUnexpected({ expected: mapped.EXPRESSION.VALUE_EXPRESSION_END });
+        }
+
+        this._tokens.next();
+
+        collect.push(new ValueExpression(lhs, { op: op.value, b: rhs }));
     }
 
-    async _handleSocket() {
-        const current = this._tokens.peek();
+    _readWhileExpressionOperand(collect) {
+        let current;
 
-        if (current.isOpToken()) {
-            await this._handleOperation();
-
-            return;
+        while (true) {
+            current = this._tokens.peek();
+            if (current.isUnaryOperatorExpressionToken()) {
+                collect.push(current);
+                this._tokens.next();
+            } else {
+                break;
+            }
         }
 
-        if (current.is(mapped.GENERAL_SYNTAX_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.NESTED_START)) {
+        current = this._tokens.peek();
+        if (current.is(null, mapped.EXPRESSION.LEFT_PARENTHESES)) {
+            collect.push(current);
             this._tokens.next();
+            
+            this._readWhileExpressionLoop(collect);
 
-            while (!this._tokens.peek().is(mapped.GENERAL_SYNTAX_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.NESTED_END)) {
-                await this._handleStatement();
-
-                this._astree.nextItem(mapped.MODULE_KEY_MAP.NESTED);
+            current = this._tokens.peek();
+            if (!current.is(null, mapped.EXPRESSION.RIGHT_PARENTHESES)) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.EXPRESSION.END });
             }
 
-            return;
+            collect.push(current);
+            this._tokens.next();
+        } else {
+            current = this._tokens.peek();
+            if (current.isExpressionTerminalToken()) {
+                collect.push(current);
+                this._tokens.next();
+            } else if (current.is(null, mapped.EXPRESSION.VALUE_EXPRESSION_START)) {
+                this._readWhileValueExpression(collect);
+            } else {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.EXPRESSION.START });
+            }
+        }
+    }
+
+    _readWhileExpressionLoop(collect) {
+        let current;
+
+        while (true) {
+            this._readWhileExpressionOperand(collect);
+
+            current                 = this._tokens.peek();
+            const binary_operation  = current.isBinaryTagOperatorExpressionToken();
+            const ternary_operation = current.isTernaryFirstOperatorExpressionToken();
+
+            if (binary_operation || ternary_operation) {
+                collect.push(current);
+                this._tokens.next();
+
+                this._readWhileExpressionOperand(collect);
+
+                if (binary_operation && !current.isExpressionStartToken()) {
+                    break;
+                }
+
+                if (ternary_operation) {
+                    if (!this._tokens.peek().isTernarySecondOperatorExpressionToken()) {
+                        let expected;
+                        if (current.is(null, mapped.EXPRESSION.TERNARY_1)) {
+                            expected = mapped.EXPRESSION.TERNARY_2;
+                        } else if (current.is(null, mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_1)) {
+                            expected = mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_2;
+                        }
+
+                        this._handleUnexpected({ expected: expected });
+                    }
+
+                    collect.push(current);
+                    this._tokens.next();
+    
+                    this._readWhileExpressionOperand(collect);
+
+                    if (!current.isExpressionStartToken()) {
+                        break;
+                    }
+                }
+            } else if (current.isExpressionStartToken()) {
+                collect.push(new Token(mapped.TOKEN_KEY.SYMBOL, mapped.EXPRESSION.IMPLICIT_OPERATOR));
+            } else {
+                break;
+            }
+        }
+    }
+
+    _readWhileExpression() {
+        let collect = [ ];
+
+        if (!this._tokens.peek().isExpressionStartToken()) {
+            return this._EMPTY_RETURN;
+        }
+
+        this._readWhileExpressionLoop(collect);
+
+        const expression = ExpressionParser.parse(collect);
+
+        return expression;
+    }
+
+    _wordToPrimitive(word) {
+        const case_insensitive_word = word.toLowerCase();
+        for (const keyword in mapped.TRIDY_TO_JAVASCRIPT_VALUE) {
+            if (case_insensitive_word === keyword) {
+                return mapped.TRIDY_TO_JAVASCRIPT_VALUE[case_insensitive_word];
+            }
+        }
+
+        if (!isNaN(word)) {
+            return Number(word);
+        }
+
+        return word;
+    }
+
+    _readWord(opts = { }) {
+        opts.force_string = opts.force_string ?? false;
+
+        const current = this._tokens.peek();
+
+        if (!current.is(mapped.TOKEN_KEY.WORD)) {
+            return this._EMPTY_RETURN;
+        }
+
+        let word = current.value;
+        this._tokens.next();
+        
+        if (opts.force_string) {
+            return word;
+        }
+
+        return this._wordToPrimitive(word);
+    }
+
+    _readWhileString() {
+        if (!current.is(mapped.TOKEN_KEY.STRING)) {
+            return this._EMPTY_RETURN;
+        }
+
+        let str = '';
+
+        do {
+            str += current.value;
+
+            this._tokens.next();
+        } while (current.is(mapped.TOKEN_KEY.STRING))
+
+        return str;
+    }
+
+    _readVariable() {
+        const current = this._tokens.peek();
+
+        if (!current.is(mapped.TOKEN_KEY.WORD)) {
+            return this._EMPTY_RETURN;
+        }
+
+        const key = current.value;
+        this._tokens.next();
+
+        return new Variable(key);
+    }
+
+    _readTag() {
+        if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.STORAGE_MARK)) {
+            return this._EMPTY_RETURN;
+        }
+
+        this._tokens.next();
+
+        const current = this._tokens.peek();
+
+        if (!current.is(mapped.TOKEN_KEY.WORD)) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+        }
+
+        const key = current.value;
+        this._tokens.next();
+
+        return new Tag(key);
+    }
+
+    _readWhileFunction() {
+        if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.FUNCTION_START)) {
+            return this._EMPTY_RETURN;
+        }
+
+        this._tokens.next();
+
+        const name = this._readWhileStringFeed();
+        if (name === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+        }
+
+        const args = [ ];
+
+        while (true) {
+            if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.DELIMITER)) {
+                break;
+            }
+
+            this._tokens.next();
+
+            const arg = this._readWhileStringFeed();
+            if (arg === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+            }
+
+            args.push(arg);
+        }
+
+        if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.FUNCTION_END)) {
+            this._handleUnexpected({ expected: [ mapped.GENERAL_SYNTAX.DELIMITER, mapped.GENERAL_SYNTAX.FUNCTION_END ] });
+        }
+
+        this._tokens.next();
+
+        return new FunctionNode(name, { args: args });
+    }
+
+    _readWhileMapping() {
+        if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.MAPPING_MARK)) {
+            return this._EMPTY_RETURN;
+        }
+
+        this._tokens.next();
+
+        let   val;
+        const current = this._tokens.peek();
+        if (current.is(mapped.TOKEN_KEY.WORD)) {
+            val = this._readVariable();
+        } else if (current.is(null, mapped.GENERAL_SYNTAX.STORAGE_MARK)) {
+            val = this._readTag();
+        } else if (current.is(null, mapped.GENERAL_SYNTAX.FUNCTION_START)) {
+            val = this._readWhileFunction();
+        }
+
+        if (val === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.MAPPING });
+        }
+
+        return val;
+    }
+
+    _readWhileStringFeed() {
+        let current = this._tokens.peek();
+
+        if (current.is(mapped.TOKEN_KEY.WORD)) {
+            return this._readWord();
+        }
+
+        if (current.is(mapped.TOKEN_KEY.STRING)) {
+            return this._readWhileString();
+        }
+
+        if (current.is(null, mapped.GENERAL_SYNTAX.MAPPING_MARK)) {
+            return this._readWhileMapping();
         }
 
         this._handleUnexpected();
     }
 
-    async _handleStatement() {
-        let nesting = 0;
+    _handleWordOperation() {
+        const word = this._readWord();
+        if (word === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+        }
+
+        this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, word);
+    }
+
+    _handleExpressionOperation() {
+        const exp = this._readWhileExpression();
+        if (exp === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.EXPRESSION.START });
+        }
+
+        this._astree.enterSetAndLeave(mapped.TREE_KEY.ASTREE.EXPRESSION, exp);
+    }
+
+    _handleExpressionLoopOperation() {
+        if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EXPRESSION_MARK)) {
+            this._handleUnexpected({ expected: mapped.GENERAL_SYNTAX.EXPRESSION_MARK });
+        }
+
+        this._tokens.next();
+
+        this._handleExpressionOperation();
+
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EXPRESSION_MARK)) {
+            this._tokens.next();
+
+            if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_START)) {
+                this._tokens.next();
+    
+                this._handleKeyValueOperation();
+    
+                if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_END)) {
+                    this._handleUnexpected({ expected: this._DEBUG_MESSAGE.KEYVALUE.END });
+                }
+    
+                this._tokens.next();
+            }
+        }
+    }
+
+    _handleWordExpressionLoopOperation() {
+        this._handleWordOperation();
+
+        this._handleExpressionLoopOperation();
+    }
+
+    _handleKeyOperation() {
+        const keys = [ ];
 
         while (true) {
-            await this._handleSocket();
-            
-            if (!this._tokens.peek().is(mapped.TOKEN_KEY_MAP.SYMBOL, mapped.GENERAL_SYNTAX_MAP.EMPLACEMENT)) {
+            const key = this._readWord({ force_string: true });
+            if (key === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+            }
+
+            keys.push(key);
+
+            if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.DELIMITER)) {
                 break;
             }
 
             this._tokens.next();
-
-            this._astree.enterNested(mapped.MODULE_KEY_MAP.NESTED);
-            nesting++;
         }
 
-        for (let i = 0; i < nesting; i++) {
-            this._astree.leaveNested();
+        const map = { };
+        for (const key of keys) {
+            if (map.hasOwnProperty(key)) {
+                this._handleUnexpected({ description: `Key "${key}" was specified more than once.` });
+            }
+
+            map[key] = mapped.TRIDY_TO_JAVASCRIPT_VALUE.nothing;
+        }
+
+        this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.METADATA, keys);
+    }
+
+    _handleKeyValueOperation() {
+        const map = { };
+
+        while (true) {
+            const keys = [ ];
+            let   val  = mapped.TRIDY_TO_JAVASCRIPT_VALUE.nothing;
+
+            while (true) {
+                /**
+                 * A word has to be in the form of a string to indicate a key.
+                 * Only when it's used as a value should it be coercable as a primitive.
+                 */
+                const key = this._readWord({ force_string: true });
+                if (key === this._EMPTY_RETURN) {
+                    /** 
+                     * Intentionally applies only the first time because a word-string is only necessary at first for an LHS.
+                     * This is since there can be multiple 'keys' (identified by words) separated by equal signs, but at least one needs to be set equal to.
+                     * Meanwhile, multiple LHSs are optional (for assigning the same value to multiple keys), 
+                     * and the RHS (of which only one can exist) can be any string and not just a word-string.
+                     */
+                    this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+                }
+    
+                if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.ASSIGNMENT)) {
+                    if (common.isEmpty(keys)) {
+                        keys.push(key);
+                    } else {
+                        /**
+                         * To account for why the RHS, even if it's a word, is treated as a string value instead of a key,
+                         * That is because stored tag and variable keys are not required to not resemble letters or various keywords.
+                         * Therefore, it would cause ambiguity with something like "var a = 1" if there happened to be a variable already with the key "1".
+                         * Mappings solve this, allowing "var a = 1" to mean assigning the value 1, and "var a = $1" to mean assigning the value stored in the variable "1". 
+                         */
+                        val = this._wordToPrimitive(key);
+                    }
+
+                    break;
+                }
+
+                keys.push(key);
+
+                this._tokens.next();
+
+                if (!this._tokens.peek().is(mapped.TOKEN_KEY.WORD)) {
+                    val = this._readWhileStringFeed();
+                    if (val === this._EMPTY_RETURN) {
+                        this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+                    }
+
+                    break;
+                }
+            }
+
+            for (const key of keys) {
+                /**
+                 * Use of hasOwnProperty() is required since undefined is used to indicate the key exists alone without a value.
+                 * This is distinctly unlike the key not existing at all.
+                 */
+                if (map.hasOwnProperty(key)) {
+                    this._handleUnexpected({ description: `Key "${key}" was specified more than once.` });
+                }
+
+                map[key] = val;
+            }
+
+            if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.DELIMITER)) {
+                break;
+            }
+
+            this._tokens.next();
+        }
+
+        this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.METADATA, map);
+    }
+
+    _handleDataMetadataOperation() {
+        const val = this._readWhileStringFeed();
+        if (val !== this._EMPTY_RETURN) {
+            this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, val);
+        }
+
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_START)) {
+            this._tokens.next();
+
+            this._handleKeyValueOperation();
+
+            if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_END)) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.KEYVALUE.END });
+            }
+
+            this._tokens.next();
+        }
+    }
+
+    _handleOperation() {
+        const current  = this._tokens.peek();
+        const op_token = current.to(current.type, current.value.toLowerCase());
+
+        if (!op_token.isOperationToken()) {
+            this._handleUnexpected({ description: `Unknown operation "${current.value}".` });
+        }
+
+        this._astree.setPosValue(new OperationNode({ operation: op_token.value }));
+
+        /**
+         * CHANGE_CONTEXT is mapped to '@', which is a symbol for expressions in general.
+         * This is done as a shortcut for the user (to not need to type an additional operation name in).
+         * However, parsing this symbol should be done elsewhere to remain consistent with the for-loop parsing function, which also uses it.
+         */
+        if (!op_token.is(null, mapped.OPERATION.CHANGE_CONTEXT)) {
+            this._tokens.next();
+        }
+
+        if (op_token.isDataMetadataSyntaxOperationToken()) {
+            this._handleDataMetadataOperation();
+        } else if (op_token.isKeyValueSyntaxOperationToken()) {
+            this._handleKeyValueOperation();
+        } else if (op_token.isKeySyntaxOperationToken()) {
+            this._handleKeyOperation();
+        } else if (op_token.isWordExpressionLoopSyntaxOperationToken()) {
+            this._handleWordExpressionLoopOperation();
+        } else if (op_token.isExpressionLoopSyntaxOperationToken()) {
+            this._handleExpressionLoopOperation();
+        } else if (op_token.isExpressionOnlySyntaxOperationToken()) {
+            this._handleExpressionOperation();
+        } else if (op_token.isWordOnlySyntaxOperationToken()) {
+            this._handleWordOperation();
+        }
+
+        if (!this._tokens.peek().isSocketEndToken()) {
+            this._handleUnexpected();
+        }
+    }
+
+    _handleOperationMode(mode_token) {
+        if (mode_token.isControlOperationToken()) {
+            this._handleUnexpected({ description: `A control operation like "${mode_token.value}" cannot have statements nested within it.` });
+        }
+
+        const current = this._tokens.peek();
+
+        let op_token;
+
+        if (current.isOperationToken()) {
+            op_token = current;
+        } else if (current.isDataStartToken()) {
+            if (mode_token.isBlockOperationToken()) {
+                let str = `An appropriate operation is required preceding "${current.value}" to indicate whether it is part of input data or an output function.`;
+                if (current.is(mapped.TOKEN_KEY.WORD)) {
+                    str += ` If "${current.value}" is supposed to be that operation, it doesn't appear to be a valid one.`;
+                }
+                this._handleUnexpected({ description: str });
+            }
+
+            if (mode_token.isSourceModeOperationToken()) {
+                op_token = current.to(mapped.TOKEN_KEY.WORD, mapped.OPERATION.APPEND_MODULE);
+            } else if (mode_token.isSinkModeOperationToken()) {
+                op_token = current.to(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OUTPUT_MODULE);
+            }
+
+            // This is done for separation of concerns; avoid handling operation-specific behavior here.
+            this._tokens.insert(op_token);
+        } else {
+            this._handleUnexpected({ description: `Unknown operation "${current.value}".` });
+        }
+
+        if (op_token.isControlOperationToken()) {
+            mode_token = op_token;
+        } else if (op_token.isSourceModeOperationToken()) {
+            if (mode_token.isSinkModeOperationToken()) {
+                this._handleUnexpected({ description: `An input operation like "${op_token.value}" cannot be nested within an output operation like "${mode_token.value}".` });
+            }
+
+            mode_token = op_token;
+        } else if (op_token.isSinkModeOperationToken()) {
+            if (mode_token.isSourceModeOperationToken()) {
+                this._handleUnexpected({ description: `An output operation like "${op_token.value}" cannot be nested within an input operation like "${mode_token.value}".` });
+            }
+
+            mode_token = op_token;
+        }
+
+        return mode_token;
+    }
+
+    _handleSocket(mode_token, is_first) {
+        const current = this._tokens.peek();
+
+        if (!is_first && current.is(null, mapped.GENERAL_SYNTAX.NESTED_START)) {
+            this._tokens.next();
+
+            while (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.NESTED_END)) {
+                this._handleStatement({ mode_token: mode_token });
+
+                if (!this._astree.isPosEmpty()) {
+                    this._astree.nextItem(mapped.TREE_KEY.SHARED.NESTED);
+                }
+            }
+        } else {
+            if (!is_first && this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EMPLACEMENT)) {
+                this._tokens.next();
+            }
+
+            mode_token = this._handleOperationMode(mode_token);
+
+            this._handleOperation();
+        }
+
+        return mode_token;
+    }
+
+    _handleStatement(opts = { }) {
+        /**
+         * The top-level operation is always just a simple lexical block.
+         * It's convenient to have this as a default instead of null or undefined due to Token's methods.
+         */
+        opts.mode_token = opts.mode_token ?? new Token(mapped.TOKEN_KEY.WORD, mapped.OPERATION.BLOCK);
+
+        let mode_token = opts.mode_token;
+        let nesting    = 0;
+
+        try {
+            let is_first = true;
+            while (true) {
+                mode_token = this._handleSocket(mode_token, is_first);
+                
+                if (!this._tokens.peek().isSocketStartToken()) {
+                    break;
+                }
+    
+                is_first = false;
+    
+                this._astree.enterNested(mapped.TREE_KEY.SHARED.NESTED);
+                nesting++;
+            }
+        } finally {
+            for (let i = 0; i < nesting; i++) {
+                this._astree.leaveNested();
+            }
         }
 
         if (!this._tokens.peek().isStatementEndToken()) {
-            this._handleUnexpected();
+            this._handleUnexpected({ description: `An incomplete statement was received, which is not allowed.` });
         }
 
         this._tokens.next();
     }
 
-    async parse(tokens, opts = { }) {
-        this._tokens = new List(tokens);
+    parse(tokens, opts = { }) {
+        opts._interactive = opts.interactive ?? false;
 
-        this._astree = new StateTree();
+        this._tokens      = new List(tokens);
+        this._astree      = new Tree({ imported: new OperationNode() });
+        this._interactive = opts.interactive;
 
-        this._astree.enterNested(mapped.MODULE_KEY_MAP.NESTED);
+        this._astree.enterNested(mapped.TREE_KEY.SHARED.NESTED);
         while (true) {
-            await this._handleStatement();
+            this._handleStatement();
 
             if (this._tokens.isEnd() || (mapped.global.flags.exit !== true)) {
                 break;
             }
 
-            this._astree.nextItem(mapped.MODULE_KEY_MAP.NESTED);
+            if (!this._astree.isPosEmpty()) {
+                this._astree.nextItem(mapped.TREE_KEY.SHARED.NESTED);
+            }
         }
-        this._astree.leaveNested(mapped.MODULE_KEY_MAP.NESTED);
+        this._astree.leaveNested(mapped.TREE_KEY.SHARED.NESTED);
 
         return this._astree.getRaw();
     }

@@ -59,7 +59,7 @@ export class Tridy {
         this._lexer.load(input, { filepath: opts.filepath });
 
         while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
-            astree = await this._parser.parse(tokens);
+            astree = this._parser.parse(tokens, { interactive: opts.interactive });
 
             console.log(JSON.stringify(astree, null, 4)); // DEBUG
             

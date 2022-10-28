@@ -36,7 +36,7 @@ const parseTridyArgs = (args) => {
     // "vars" is referring to variables internal to Tridy, not JavaScript (in other words, as part of the application).
     const global_vars = { };
 
-    const variable_name = new RegExp(mapped.REGEX_MAP.UNQUOTED);
+    const variable_name = new RegExp(mapped.REGEX_MAP.WORD);
     let   key           = null;
     for (const arg of args) {
         if (key === null) {
@@ -70,8 +70,12 @@ program
             .conflicts('command')
     )
     .addOption(
-        new Option('-i, --include <paths...>', 'Folders to search Tridy functions out of.')
-            .default(mapped.global.defaults.include)
+        new Option('-i, --sources <paths...>', 'Folders to search Tridy source functions out of.')
+            .default(mapped.global.defaults.include.sources)
+    )
+    .addOption(
+        new Option('-i, --sinks <paths...>', 'Folders to search Tridy sink functions out of.')
+            .default(mapped.global.defaults.include.sinks)
     )
     .addOption(
         new Option('-l, --log-level <level>', 'The log level used, as one of NPM\'s available log levels')

@@ -42,4 +42,16 @@ export class List extends Stack {
         }
         return cond;
     }
+
+    insert(item) {
+        this._arr.splice(this._it, 0, item);
+    }
+
+    delete() {
+        this._arr.splice(this._it, 1);
+    }
+
+    replace(item) {
+        this._arr.splice(this._it, 1, item);
+    }
 }

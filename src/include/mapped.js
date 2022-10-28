@@ -17,203 +17,192 @@ export const global = {
         clear: false,
         exit:  false
     },
-    include: [
-        './functions'
-    ],
+    include: {
+        sources: [
+            './sources'
+        ],
+        sinks: [
+            './sinks'
+        ]
+    },
     log_level: 'info'
 };
 global.defaults = Object.freeze(deepCopy(global));
 
 export const varmap = [ ];
 
-export const MODULE_KEY_MAP = Object.freeze({
-    METADATA: 'meta',
-    DATA:     'data',
-    NESTED:   'tree'
+export const REGEX = Object.freeze({
+    SYMBOL: '[~!@$%^&*()=\\[\\]{}|;:,<>?\\/]',
+    WORD:   '^[-A-Za-z0-9_+.]+$'
 });
 
-export const GENERAL_SYNTAX_MAP = Object.freeze({
-    ASSIGNMENT:          '=',
-    DELIMITER:           ',',
-    EMPLACEMENT:         ':',
-    CONTEXT_START:       '(',
-    CONTEXT_END:         ')',
-    CONTEXT_VALUE_START: '[',
-    CONTEXT_VALUE_END:   ']',
-    METADATA_START:      '[',
-    METADATA_END:        ']',
-    FUNCTION_START:      '(',
-    FUNCTION_END:        ')',
-    NESTED_START:        '{',
-    NESTED_END:          '}',
+export const TOKEN_KEY = Object.freeze({
+    SYMBOL: 'symbol',
+    WORD:   'word',
+    STRING: 'string'
+});
+
+export const TREE_KEY = Object.freeze({
+    ASTREE: {
+        EXPRESSION: 'expression',
+        OPERATION:  'operation',
+        VALUE: {
+            TYPE:      'type',
+            DATA:      'data',
+            ARGUMENTS: 'arguments'
+        }
+    },
+    SHARED: {
+        METADATA: 'metadata',
+        DATA:     'data',
+        NESTED:   'nested'
+    }
+});
+
+export const GENERAL_SYNTAX = Object.freeze({
+    EXPRESSION_MARK: '@',
+    MAPPING_MARK:    '$',
+    STORAGE_MARK:    '@',
+    FUNCTION_START:  '(',
+    FUNCTION_END:    ')',
+    KEYVALUE_START:  '[',
+    KEYVALUE_END:    ']',
+    ASSIGNMENT:      '=',
+    DELIMITER:       ',',
     STRING_DELIMITER: {
         LINE:      "'",
         MAGIC:     '"',
         MULTILINE: '`'
     },
     ESCAPE:        '\\',
+    EMPLACEMENT:   ':',
+    NESTED_START:  '{',
+    NESTED_END:    '}',
     STATEMENT_END: ';',
     COMMENT_START: '#',
 });
 
-export const REGEX_MAP = Object.freeze({
-    UNQUOTED: '^[A-Za-z0-9_.]+$',
-    SYMBOL:   '[~!$%^&*()-=+\\[\\]{}|;:,<>?\\/]'
+export const EXPRESSION = Object.freeze({
+    LEFT_PARENTHESES:                        '(',
+    RIGHT_PARENTHESES:                       ')',
+    WILDCARD:                                '*',
+    NOT:                                     '!',
+    IMPLICIT_OPERATOR:                       '&',
+    AND:                                     '&',
+    XOR:                                     '^',
+    OR:                                      '|',
+    TERNARY_1:                               '?',
+    TERNARY_2:                               ':',
+    LOOKAHEAD:                               '>',
+    RECURSIVE_LOOKAHEAD:                     '>>',
+    LOOKBEHIND:                              '<',
+    RECURSIVE_LOOKBEHIND:                    '<<',
+    LOOKAROUND:                              '<>',
+    INVERSE_LOOKAHEAD:                       '!>',
+    INVERSE_RECURSIVE_LOOKAHEAD:             '!>>',
+    INVERSE_LOOKBEHIND:                      '!<',
+    INVERSE_RECURSIVE_LOOKBEHIND:            '!<<',
+    INVERSE_LOOKAROUND:                      '!<>',
+    FORWARD_TRANSITION:                      '/',
+    CHAINED_FORWARD_TRANSITION:              '/~',
+    RECURSIVE_FORWARD_TRANSITION:            '//',
+    BACKWARD_TRANSITION:                     '%',
+    CHAINED_BACKWARD_TRANSITION:             '%~',
+    RECURSIVE_BACKWARD_TRANSITION:           '%%',
+    INCLUSIVE_FORWARD_TRANSITION:            '&/',
+    INCLUSIVE_CHAINED_FORWARD_TRANSITION:    '&/~',
+    INCLUSIVE_RECURSIVE_FORWARD_TRANSITION:  '&//',
+    INCLUSIVE_BACKWARD_TRANSITION:           '&%',
+    INCLUSIVE_CHAINED_BACKWARD_TRANSITION:   '&%~',
+    INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION: '&%%',
+    OR_LOW_PRECEDENCE:                       ',',
+    TERNARY_LOW_PRECEDENCE_1:                '??',
+    TERNARY_LOW_PRECEDENCE_2:                '::',
+    VALUE_EXPRESSION_START:                  '[',
+    VALUE_EXPRESSION_END:                    ']',
+    EQUAL_TO:                                '==',
+    NOT_EQUAL_TO:                            '!=',
+    LESS_THAN:                               '<',
+    LESS_THAN_OR_EQUAL_TO:                   '<=',
+    GREATER_THAN:                            '>',
+    GREATER_THAN_OR_EQUAL_TO:                '>='
 });
 
-export const TOKEN_KEY_MAP = Object.freeze({
-    SYMBOL: 'sym',
-    STRING: {
-        UNQUOTED: 'str',
-        QUOTED:   'qstr',
-    },
-    CONTEXT: {
-        LITERAL:       'val',
-        VARIABLE:      'var',
-        FUNCTION:      'func',
-        TAGLIKE:       'tag',
-        OPERATION:     'op',
-        MISCELLANEOUS: 'misc'
-    }
+export const PRECEDENCE = Object.freeze({
+    '!':   1,
+    '&':   2,
+    '^':   3,
+    '|':   4,
+    '?':   5,
+    ':':   5,
+    '>':   6,
+    '>>':  6,
+    '<':   6,
+    '<<':  6,
+    '<>':  6,
+    '!>':  6,
+    '!>>': 6,
+    '!<':  6,
+    '!<<': 6,
+    '!<>': 6,
+    '/':   7,
+    '/~':  7,
+    '//':  7,
+    '%':   7,
+    '%~':  7,
+    '%%':  7,
+    '&/':  7,
+    '&/~': 7,
+    '&//': 7,
+    '&%':  7,
+    '&%~': 7,
+    '&%%': 7,
+    ',':   8,
+    '??':  9,
+    '::':  9
 });
 
-// For multi-character symbols, make sure to change how they're handled in the token lexer under _readSymbols() as well.
-const VALUE_SYMBOL       = '$';
-export const CONTEXT_MAP = Object.freeze({
-    LEFT_PARENTHESES:                             '(',
-    RIGHT_PARENTHESES:                            ')',
-    WILDCARD_LONG:                                'any',
-    WILDCARD:                                     '*',
-    NOT_LONG:                                     'not',
-    NOT:                                          '!',
-    AND_LONG:                                     'and',
-    AND:                                          '&',
-    XOR_LONG:                                     'xor',
-    XOR:                                          '^',
-    OR_LONG:                                      'or',
-    OR:                                           '|',
-    OR_EXTRA:                                     ',',
-    TERNARY_1_LONG:                               'then',
-    TERNARY_1:                                    '?',
-    TERNARY_2_LONG:                               'else',
-    TERNARY_2:                                    ':',
-    LOOKAHEAD_LONG:                               'parent',
-    LOOKAHEAD:                                    '>',
-    RECURSIVE_LOOKAHEAD_LONG:                     'ascend',
-    RECURSIVE_LOOKAHEAD:                          '>>',
-    LOOKBEHIND_LONG:                              'child',
-    LOOKBEHIND:                                   '<',
-    RECURSIVE_LOOKBEHIND_LONG:                    'descend',
-    RECURSIVE_LOOKBEHIND:                         '<<',
-    LOOKAROUND_LONG:                              'sibling',
-    LOOKAROUND:                                   '<>',
-    INVERSE_LOOKAHEAD_LONG:                       'nonparent',
-    INVERSE_LOOKAHEAD:                            '!>',
-    INVERSE_RECURSIVE_LOOKAHEAD_LONG:             'nonascend',
-    INVERSE_RECURSIVE_LOOKAHEAD:                  '!>>',
-    INVERSE_LOOKBEHIND_LONG:                      'nonchild',
-    INVERSE_LOOKBEHIND:                           '!<',
-    INVERSE_RECURSIVE_LOOKBEHIND_LONG:            'nondescend',
-    INVERSE_RECURSIVE_LOOKBEHIND:                 '!<<',
-    INVERSE_LOOKAROUND_LONG:                      'nonsibling',
-    INVERSE_LOOKAROUND:                           '!<>',
-    FORWARD_TRANSITION_LONG:                      'to',
-    FORWARD_TRANSITION:                           '/',
-    CHAINED_FORWARD_TRANSITION_LONG:              'tochain',
-    CHAINED_FORWARD_TRANSITION:                   '//',
-    RECURSIVE_FORWARD_TRANSITION_LONG:            'toall',
-    RECURSIVE_FORWARD_TRANSITION:                 '/~',
-    BACKWARD_TRANSITION_LONG:                     'back',
-    BACKWARD_TRANSITION:                          '%',
-    CHAINED_BACKWARD_TRANSITION_LONG:             'backchain',
-    CHAINED_BACKWARD_TRANSITION:                  '%%',
-    RECURSIVE_BACKWARD_TRANSITION_LONG:           'backall',
-    RECURSIVE_BACKWARD_TRANSITION:                '%~',
-    INCLUSIVE_FORWARD_TRANSITION_LONG:            'andto',
-    INCLUSIVE_FORWARD_TRANSITION:                 '&/',
-    INCLUSIVE_CHAINED_FORWARD_TRANSITION_LONG:    'andtochain',
-    INCLUSIVE_CHAINED_FORWARD_TRANSITION:         '&//',
-    INCLUSIVE_RECURSIVE_FORWARD_TRANSITION_LONG:  'andtoall',
-    INCLUSIVE_RECURSIVE_FORWARD_TRANSITION:       '&/~',
-    INCLUSIVE_BACKWARD_TRANSITION_LONG:           'andback',
-    INCLUSIVE_BACKWARD_TRANSITION:                '&%',
-    INCLUSIVE_CHAINED_BACKWARD_TRANSITION_LONG:   'andbackchain',
-    INCLUSIVE_CHAINED_BACKWARD_TRANSITION:        '&%%',
-    INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION_LONG: 'andbackall',
-    INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION:      '&%~',
-    VALUE_SYMBOL:                                 VALUE_SYMBOL,
-    EQUAL_TO_LONG:                                'eq',
-    EQUAL_TO:                                     '==',
-    EQUAL_TO_INTERNAL:                            VALUE_SYMBOL + '==',
-    NOT_EQUAL_TO_LONG:                            'ne',
-    NOT_EQUAL_TO:                                 '!=',
-    NOT_EQUAL_TO_INTERNAL:                        VALUE_SYMBOL + '!=',
-    LESS_THAN_LONG:                               'lt',
-    LESS_THAN:                                    '<',
-    LESS_THAN_INTERNAL:                           VALUE_SYMBOL + '<',
-    LESS_THAN_OR_EQUAL_TO_LONG:                   'le',
-    LESS_THAN_OR_EQUAL_TO:                        '<=',
-    LESS_THAN_OR_EQUAL_TO_INTERNAL:               VALUE_SYMBOL + '<=',
-    GREATER_THAN_LONG:                            'gt',
-    GREATER_THAN:                                 '>',
-    GREATER_THAN_INTERNAL:                        VALUE_SYMBOL + '>',
-    GREATER_THAN_OR_EQUAL_TO_LONG:                'ge',
-    GREATER_THAN_OR_EQUAL_TO:                     '>=',
-    GREATER_THAN_OR_EQUAL_TO_INTERNAL:            VALUE_SYMBOL + '>=',
-    ADD_LONG:                                     'add',
-    ADD:                                          '+',
-    ADD_INTERNAL:                                 VALUE_SYMBOL + '+',
-    SUBTRACT_LONG:                                'sub',
-    SUBTRACT:                                     '-',
-    SUBTRACT_INTERNAL:                            VALUE_SYMBOL + '-',
-    MULTIPLY_LONG:                                'mul',
-    MULTIPLY:                                     '*',
-    MULTIPLY_INTERNAL:                            VALUE_SYMBOL + '*',
-    DIVIDE_LONG:                                  'div',
-    DIVIDE:                                       '/',
-    DIVIDE_INTERNAL:                              VALUE_SYMBOL + '/',
-    MODULUS_LONG:                                 'mod',
-    MODULUS:                                      '%',
-    MODULUS_INTERNAL:                             VALUE_SYMBOL + '%',
-    EXPONENT_LONG:                                'exp',
-    EXPONENT:                                     '^',
-    EXPONENT_INTERNAL:                            VALUE_SYMBOL + '^',
+export const OPERATION = Object.freeze({
+    NOP:                   'tridy',
+    APPEND_MODULE:         'new',
+    PRECEDE_MODULE:        'head',
+    SUCCEED_MODULE:        'tail',
+    OVERWRITE_MODULE:      'write',
+    EDIT_MODULE:           'put',
+    DELETE_MODULE:         'delete',
+    EDIT_METADATA:         'set',
+    DELETE_METADATA:       'unset',
+    DECLARE_VARIABLE:      'let',
+    EDIT_VARIABLE:         'var',
+    BLOCK:                 'do',
+    CONDITION_SUCCESS:     'if',
+    CONDITION_FAILURE:     'unless',
+    LOOP:                  'for',
+    CONTROL_SKIP_TO_LABEL: 'skipto',
+    CONTROL_LABEL:         'label',
+    CHANGE_CONTEXT:        '@',
+    OUTPUT_MODULE:         'out',
+    CONSOLE_CLEAR_OUTPUT:  'clear',
+    CONSOLE_EXIT:          'exit',
 });
 
-export const OPERATION_MAP = Object.freeze({
-    NOP:                  'tridy',
-    APPEND_MODULE:        'new',
-    PRECEDE_MODULE:       'head',
-    SUCCEED_MODULE:       'tail',
-    OVERWRITE_MODULE:     'force',
-    EDIT_MODULE:          'put',
-    DELETE_MODULE:        'delete',
-    EDIT_METADATA:        'set',
-    DELETE_METADATA:      'unset',
-    ACCESS_VARIABLE:      'var',
-    ACCESS_CONTEXT:       'in',
-    CONDITION_EXISTS:     'if',
-    CONDITION_NOT_EXISTS: 'unless',
-    SWITCH_START:         'switch',
-    LOOP_START:           'for',
-    CONTROL_CONTINUE:     'continue',
-    CONTROL_BREAK:        'break',
-    CONSOLE_STATISTICS:   'stat',
-    CONSOLE_CLEAR_OUTPUT: 'clear',
-    CONSOLE_EXIT:         'exit'
+export const SPECIAL_VALUE = Object.freeze({
+    DELETE_ME: Symbol()
 });
 
-export const META_OPERATION_MAP = Object.freeze({
-    CONDITION_ELSE:       'else',
-    SWITCH_CASE:          'case',
-    SWITCH_DEFAULT:       'default',
-    LOOP_SOURCE:          'of'
+export const JAVASCRIPT_TO_TRIDY_VALUE = Object.freeze({
+    true:      'true',
+    false:     'false',
+    NaN:       'artifact',
+    null:      'null',
+    undefined: 'nothing',
 });
 
-export const VALUE_MAP = Object.freeze({
-    TRUE:      'true',
-    FALSE:     'false',
-    NAN:       'fact',
-    NULL:      'null',
-    UNDEFINED: 'none'
+export const TRIDY_TO_JAVASCRIPT_VALUE = Object.freeze({
+    true:      true,
+    false:     false,
+    artifact:  NaN,
+    null:      null,
+    nothing:   undefined,
+    undefined: SPECIAL_VALUE.DELETE_ME
 });

@@ -1,5 +1,4 @@
 import * as common from '../common.js';
-import { global }  from '../mapped.js';
 
 /**
  * A generalized class that is basically an iterable n-ary tree, used as both a skeleton for the Tridy database, and for the abstract syntax tree used to prepare it.
@@ -14,7 +13,7 @@ import { global }  from '../mapped.js';
  * 
  * When it no longer serves to access the tree through an iterable, getRaw() can be used to acquire the underlying object.
  */
-export class StateTree {
+export class Tree {
     constructor(opts = { }) {
         opts.imported = opts.imported ?? null;
 

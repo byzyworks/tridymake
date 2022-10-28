@@ -5,7 +5,7 @@ import { SyntaxError } from '../error.js';
 import * as mapped     from '../mapped.js';
 
 import { Stack } from '../instance/Stack.js';
-import { Token } from '../instance/Token.js';
+import { Token } from '../instance/lexing/Token.js';
 
 export class TokenLexer {
     constructor() {
@@ -17,10 +17,10 @@ export class TokenLexer {
     }
 
     _initSymbols() {
-        const multi_symbol = new RegExp(`^${mapped.REGEX_MAP.SYMBOL}{2,}$`);
+        const multi_symbol = new RegExp(`^${mapped.REGEX.SYMBOL}{2,}$`);
         const sources = [
-            mapped.GENERAL_SYNTAX_MAP,
-            mapped.CONTEXT_MAP
+            mapped.GENERAL_SYNTAX,
+            mapped.EXPRESSION
         ];
         this._symbols = [ ];
 
@@ -121,22 +121,22 @@ export class TokenLexer {
 
         /**
          * Accounts for symbols not explicitly in the sources.
-         * (In that case, not valid syntax, but still "symbols").
+         * (In that case, not valid syntax, but they still count as "symbols").
          */
         if (candidate === '') {
             candidate = this._lexer.next();
         }
 
-        return new Token(mapped.TOKEN_KEY_MAP.SYMBOL, candidate, pos);
+        return new Token(mapped.TOKEN_KEY.SYMBOL, candidate, pos);
     }
 
     _readWord() {
         const pos = this._lexer.getPos();
 
-        const valid_word = new RegExp(mapped.REGEX_MAP.UNQUOTED);
+        const valid_word = new RegExp(mapped.REGEX.WORD);
         let word         = this._readWhilePred(valid_word.test.bind(valid_word));
 
-        return new Token(mapped.TOKEN_KEY_MAP.STRING.UNQUOTED, word, pos);
+        return new Token(mapped.TOKEN_KEY.WORD, word, pos);
     }
 
     _readWhileEscaped() {
@@ -150,12 +150,12 @@ export class TokenLexer {
             if (is_escaped) {
                 const map = { };
                 switch (this._mode.peek()) {
-                    case mapped.TOKEN_KEY_MAP.STRING.LINE:
-                    case mapped.TOKEN_KEY_MAP.STRING.MULTILINE:
+                    case mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE:
+                    case mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE:
                         map['t'] = "\t";
                         
                         break;
-                    case mapped.TOKEN_KEY_MAP.STRING.MAGIC:
+                    case mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC:
                         map['t'] = "\t";
                         map['r'] = "\r";
                         map['n'] = "\n";
@@ -168,19 +168,19 @@ export class TokenLexer {
                 
                 is_escaped = false;
                 this._lexer.next();
-            } else if (ch === mapped.GENERAL_SYNTAX_MAP.ESCAPE) {
+            } else if (ch === mapped.GENERAL_SYNTAX.ESCAPE) {
                 is_escaped = true;
                 this._lexer.next();
-            } else if (ch === mapped.GENERAL_SYNTAX_MAP.COMMENT_START) {
+            } else if (ch === mapped.GENERAL_SYNTAX.COMMENT_START) {
                 this._mode.push('normal');
                 break;
-            } else if (this._mode.peek() === mapped.TOKEN_KEY_MAP.STRING.LINE) {
+            } else if (this._mode.peek() === mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE) {
                 switch (ch) {
                     case "\r":
                     case "\n":
                     case "\v":
                         break;
-                    case mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.LINE:
+                    case mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE:
                         this._mode.pop();
                         break;
                     default:
@@ -189,11 +189,11 @@ export class TokenLexer {
                 }
                 this._lexer.next();
                 break;
-            } else if ((ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.MAGIC) && (this._mode.peek() === mapped.TOKEN_KEY_MAP.STRING.MAGIC)) {
+            } else if ((ch === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC) && (this._mode.peek() === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC)) {
                 this._mode.pop();
                 this._lexer.next();
                 break;
-            } else if ((ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.MULTILINE) && (this._mode.peek() === mapped.TOKEN_KEY_MAP.STRING.MULTILINE)) {
+            } else if ((ch === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE) && (this._mode.peek() === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE)) {
                 this._mode.pop();
                 this._lexer.next();
                 break;
@@ -230,9 +230,9 @@ export class TokenLexer {
         }
 
         switch (this._mode.peek()) {
-            case mapped.TOKEN_KEY_MAP.STRING.LINE:
-            case mapped.TOKEN_KEY_MAP.STRING.MAGIC:
-            case mapped.TOKEN_KEY_MAP.STRING.MULTILINE:
+            case mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE:
+            case mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC:
+            case mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE:
                 return this._readRaw();
         }
 
@@ -245,29 +245,29 @@ export class TokenLexer {
             this._mode.pop();
         }
 
-        if ((new RegExp(mapped.REGEX_MAP.SYMBOL)).test(ch)) {
+        if ((new RegExp(mapped.REGEX.SYMBOL)).test(ch)) {
             return this._readSymbols();
         }
 
-        if ((new RegExp(mapped.REGEX_MAP.UNQUOTED)).test(ch)) {
+        if ((new RegExp(mapped.REGEX.WORD)).test(ch)) {
             return this._readWord();
         }
 
-        if (ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.LINE) {
+        if (ch === mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE) {
             this._lexer.next();
-            this._mode.push(mapped.TOKEN_KEY_MAP.STRING.LINE);
+            this._mode.push(mapped.GENERAL_SYNTAX.STRING_DELIMITER.LINE);
             return this._readRaw();
         }
 
-        if (ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.MAGIC) {
+        if (ch === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC) {
             this._lexer.next();
-            this._mode.push(mapped.TOKEN_KEY_MAP.STRING.MAGIC);
+            this._mode.push(mapped.GENERAL_SYNTAX.STRING_DELIMITER.MAGIC);
             return this._readRaw();
         }
 
-        if (ch === mapped.GENERAL_SYNTAX_MAP.STRING_DELIMITER.MULTILINE) {
+        if (ch === mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE) {
             this._lexer.next();
-            this._mode.push(mapped.TOKEN_KEY_MAP.STRING.MULTILINE);
+            this._mode.push(mapped.GENERAL_SYNTAX.STRING_DELIMITER.MULTILINE);
             return this._readRaw();
         }
 
@@ -275,7 +275,7 @@ export class TokenLexer {
          * This function needs to return something always, at least until it reaches the end of the input.
          * The statement parser will stop checking for new tokens once this function returns null or undefined.
          */
-        if (ch === mapped.GENERAL_SYNTAX_MAP.COMMENT_START) {
+        if (ch === mapped.GENERAL_SYNTAX.COMMENT_START) {
             this._lexer.next();
             this._readComment();
             return this._readNext();
