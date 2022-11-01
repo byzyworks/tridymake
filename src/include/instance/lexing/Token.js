@@ -102,7 +102,7 @@ export class Token {
         ;
     }
 
-    isLookaroundNestedOperatorExpressionToken() {
+    isLookaroundOperatorExpressionToken() {
         return false ||
             this.is(null, mapped.EXPRESSION.LOOKAROUND) ||
             this.is(null, mapped.EXPRESSION.INVERSE_LOOKAROUND)
@@ -112,8 +112,7 @@ export class Token {
     isNonTransitiveNestedOperatorExpressionToken() {
         return false ||
             this.isLookaheadNestedOperatorExpressionToken() ||
-            this.isLookbehindNestedOperatorExpressionToken() ||
-            this.isLookaroundNestedOperatorExpressionToken()
+            this.isLookbehindNestedOperatorExpressionToken()
         ;
     }
 
@@ -156,7 +155,8 @@ export class Token {
     isBinaryTagOperatorExpressionToken() {
         return false ||
             this.isBasicBinaryOperatorExpressionToken() ||
-            this.isNestedOperatorExpressionToken()
+            this.isNestedOperatorExpressionToken() ||
+            this.isLookaroundOperatorExpressionToken()
         ;
     }
 

@@ -11,6 +11,12 @@ export const isNullish = (obj) => {
     return (obj === undefined) || (obj === null);
 }
 
+export const setUnlessNullish = (target, key, source) => {
+    if (!isNullish(source)) {
+        target[key] = source;
+    }
+}
+
 export const isBoolean = (obj) => {
     return (typeof obj === 'boolean') || (obj === 1) || (obj === 0) || (obj === 'true') || (obj === 'false');
 }

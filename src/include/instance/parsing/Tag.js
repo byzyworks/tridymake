@@ -1,5 +1,7 @@
-export class Tag {
+import { Mapping } from './Mapping.js';
+
+export class Tag extends Mapping {
     constructor(key) {
-        this.key = key;
+        super(key);
     }
 }

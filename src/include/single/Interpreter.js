@@ -4,6 +4,8 @@
  * @module
  */
 
+import util from 'util'; //DEBUG
+
 //import { Composer }       from './Composer.js';
 import { SyntaxParser }   from './SyntaxParser.js';
 import { StatementLexer } from './StatementLexer.js';
@@ -61,7 +63,7 @@ export class Tridy {
         while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
             astree = this._parser.parse(tokens, { interactive: opts.interactive });
 
-            console.log(JSON.stringify(astree, null, 4)); // DEBUG
+            console.log(util.inspect(astree, {showHidden: false, depth: null, colors: true})); //DEBUG
             
             /*
             if (mapped.global.flags.exit === true) {

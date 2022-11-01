@@ -109,7 +109,7 @@ export class TokenLexer {
     _readSymbols() {
         const pos = this._lexer.getPos();
 
-        let candidate = '';
+        let candidate;
 
         for (const symbol of this._symbols) {
             candidate = this._readAgainst(symbol);
@@ -117,13 +117,12 @@ export class TokenLexer {
             if (candidate === symbol) {
                 break;
             }
+
+            candidate = null;
         }
 
-        /**
-         * Accounts for symbols not explicitly in the sources.
-         * (In that case, not valid syntax, but they still count as "symbols").
-         */
-        if (candidate === '') {
+        // Catches all single-character symbols (even ones not officially used).
+        if (candidate === null) {
             candidate = this._lexer.next();
         }
 

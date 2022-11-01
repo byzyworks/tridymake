@@ -1,5 +1,7 @@
-export class Variable {
+import { Mapping } from './Mapping.js';
+
+export class Variable extends Mapping {
     constructor(key) {
-        this.key = key;
+        super(key);
     }
 }

@@ -1,8 +1,7 @@
-//import { isDictionary, isEmpty } from '../common.js';
 import * as mapped from '../mapped.js';
 
-import { ExpressionNode }  from '../instance/parsing/ExpressionNode.js';
-import { ValueExpression } from '../instance/parsing/ValueExpression.js';
+import { Token }          from '../instance/lexing/Token.js'
+import { ExpressionNode } from '../instance/parsing/ExpressionNode.js';
 
 import { Stack } from '../instance/Stack.js';
 import { Queue } from '../instance/Queue.js';
@@ -20,7 +19,7 @@ export class ExpressionParser {
         const ops = new Stack();
 
         for (const item of input) {
-            if (item instanceof ValueExpression || item.isExpressionTerminalToken()) {
+            if ((item instanceof ExpressionNode) || item.isExpressionTerminalToken()) {
                 out.enqueue(item);
             } else if (item.is(null, mapped.EXPRESSION.LEFT_PARENTHESES)) {
                 ops.push(item);
@@ -85,13 +84,6 @@ export class ExpressionParser {
         return out.pop();
     }
 
-    static parse(input) {
-        input = this._toPostfix(input);
-        input = this._toTree(input);
-
-        return input;
-    }
-
     /**
      * Adding "position helpers" to the expression's terminals is to determine which sub-expressions are "intermediate" (like a in "a/b") of "final" (like b in "a/b").
      * We want to verify, in addition to if an expression matches, that the expression also reaches the last element of the current module's context.
@@ -101,88 +93,107 @@ export class ExpressionParser {
      * Fortunately, it's easy from the expression to determine if a terminal is final or not, based on it containing sub-expressions with transitive operators.
      * It can be made a requirement specifically that "final" terminals are evathis._tokens.next();luated at a last level of the context being evaluated, and not before or after.
      */
-    /**
-    static _createPositionHelpers(test, end = null) {
-        const token = new Token(mapped.TOKEN_KEY_MAP.CONTEXT.OPERATION, test.op);
+    static _createPositionHelpers(test, final = null) {
+        const token = new Token(null, test.op);
 
-        if (end === null) {
-            if (token.isNestedOpContextToken()) {
+        if (final === null) {
+            if (token.isNestedOperatorExpressionToken()) {
                 let evaluated = 'a';
                 let affected  = 'b';
-                if (token.isNonTransitiveNestedOpContextToken()) {
+                if (token.isNonTransitiveNestedOperatorExpressionToken()) {
                     evaluated = 'b';
                     affected  = 'a';
                 }
-    
-                if (isDictionary(test[evaluated])) {
-                    this._createPositionHelpers(test[evaluated], false);
-                } else {
-                    test[evaluated] = { val: test[evaluated], end: false };
+
+                if (test[evaluated] instanceof ExpressionNode) {
+                    if (test[evaluated].isTerminal()) {
+                        test[evaluated].final = false;
+                    } else {
+                        this._createPositionHelpers(test[evaluated], false);
+                    }
                 }
 
-                if (isDictionary(test[affected])) {
-                    this._createPositionHelpers(test[affected], null);
-                } else {
-                    test[affected] = { val: test[affected], end: true };
+                if (test[affected] instanceof ExpressionNode) {
+                    if (test[affected].isTerminal()) {
+                        test[affected].final = true;
+                    } else {
+                        this._createPositionHelpers(test[affected], null);
+                    }
                 }
             } else {
-                if (isDictionary(test.a)) {
-                    this._createPositionHelpers(test.a, null);
+                if (test.isTerminal()) {
+                    test.final = true;
                 } else {
-                    test.a = { val: test.a, end: true };
-                }
-
-                if (!token.isUnaryOpContextToken()) {
-                    if (isDictionary(test.b)) {
-                        this._createPositionHelpers(test.b, null);
-                    } else {
-                        test.b = { val: test.b, end: true };
-                    }
-
-                    if (token.is(mapped.TOKEN_KEY_MAP.CONTEXT.OPERATION, mapped.EXPRESSION.TERNARY_2)) {
-                        if (isDictionary(test.c)) {
-                            this._createPositionHelpers(test.c, null);
+                    if (test.a instanceof ExpressionNode) {
+                        if (test.a.isTerminal()) {
+                            test.a.final = true;
                         } else {
-                            test.c = { val: test.c, end: true };
+                            this._createPositionHelpers(test.a, null);
+                        }
+                    }
+    
+                    if (!token.isUnaryOperatorExpressionToken()) {
+                        if (test.b instanceof ExpressionNode) {
+                            if (test.b.isTerminal()) {
+                                test.b.final = true;
+                            } else {
+                                this._createPositionHelpers(test.b, null);
+                            }
+                        }
+    
+                        if (token.isTernaryFirstOperatorExpressionToken()) {
+                            if (test.c instanceof ExpressionNode) {
+                                if (test.c.isTerminal()) {
+                                    test.c.final = true;
+                                } else {
+                                    this._createPositionHelpers(test.c, null);
+                                }
+                            }
                         }
                     }
                 }
             }
         } else {
-            if (isDictionary(test.a)) {
-                this._createPositionHelpers(test.a, end);
+            if (test.isTerminal()) {
+                test.final = final;
             } else {
-                test.a = { val: test.a, end: end };
-            }
-            
-            if (!token.isUnaryOpContextToken()) {
-                if (isDictionary(test.b)) {
-                    this._createPositionHelpers(test.b, end);
-                } else {
-                    test.b = { val: test.b, end: end };
-                }
-
-                if (token.isTernaryFirstOpContextToken()) {
-                    if (isDictionary(test.c)) {
-                        this._createPositionHelpers(test.c, end);
+                if (test.a instanceof ExpressionNode) {
+                    if (test.a.isTerminal()) {
+                        test.a.final = final;
                     } else {
-                        test.c = { val: test.c, end: end };
+                        this._createPositionHelpers(test.a, final);
+                    }
+                }
+    
+                if (!token.isUnaryOperatorExpressionToken()) {
+                    if (test.b instanceof ExpressionNode) {
+                        if (test.b.isTerminal()) {
+                            test.b.final = final;
+                        } else {
+                            this._createPositionHelpers(test.b, final);
+                        }
+                    }
+    
+                    if (token.isTernaryFirstOperatorExpressionToken()) {
+                        if (test.c instanceof ExpressionNode) {
+                            if (test.c.isTerminal()) {
+                                test.c.final = final;
+                            } else {
+                                this._createPositionHelpers(test.c, final);
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    static upgrade(test) {
-        if (!isDictionary(test)) {
-            return { val: test, end: true };
-        }
+    static parse(input) {
+        input = this._toPostfix(input);
+        input = this._toTree(input);
+        
+        this._createPositionHelpers(input, null);
 
-        if (!isEmpty(test)) {
-            this._createPositionHelpers(test, null);
-        }
-
-        return test;
+        return input;
     }
-    */
 }

@@ -6,11 +6,11 @@ import * as mapped from '../mapped.js';
 
 import { Token } from '../instance/lexing/Token.js';
 
-import { FunctionNode }    from '../instance/parsing/FunctionNode.js';
-import { OperationNode }   from '../instance/parsing/OperationNode.js';
-import { Tag }             from '../instance/parsing/Tag.js';
-import { ValueExpression } from '../instance/parsing/ValueExpression.js';
-import { Variable }        from '../instance/parsing/Variable.js';
+import { FunctionNode }   from '../instance/parsing/FunctionNode.js';
+import { OperationNode }  from '../instance/parsing/OperationNode.js';
+import { Tag }            from '../instance/parsing/Tag.js';
+import { ExpressionNode } from '../instance/parsing/ExpressionNode.js';
+import { Variable }       from '../instance/parsing/Variable.js';
 
 import { List } from '../instance/List.js';
 import { Tree } from '../instance/Tree.js';
@@ -63,8 +63,7 @@ export class SyntaxParser {
     }
 
     _readWhileValueExpression(collect) {
-        let current = this._tokens.peek();
-        if (!current.is(null, mapped.EXPRESSION.VALUE_EXPRESSION_START)) {
+        if (!this._tokens.peek().is(null, mapped.EXPRESSION.VALUE_EXPRESSION_START)) {
             this._handleUnexpected({ expected: mapped.EXPRESSION.VALUE_EXPRESSION_START });
         }
 
@@ -81,7 +80,7 @@ export class SyntaxParser {
 
         current = this._tokens.peek();
         if (current.isBinaryValueOperatorExpressionToken()) {
-            op = current;
+            op = current.value;
             this._tokens.next();
 
             rhs = this._readWhileStringFeed();
@@ -90,17 +89,16 @@ export class SyntaxParser {
             }
         }
 
-        current = this._tokens.peek();
-        if (!current.is(null, mapped.EXPRESSION.VALUE_EXPRESSION_END)) {
+        if (!this._tokens.peek().is(null, mapped.EXPRESSION.VALUE_EXPRESSION_END)) {
             this._handleUnexpected({ expected: mapped.EXPRESSION.VALUE_EXPRESSION_END });
         }
 
         this._tokens.next();
 
-        collect.push(new ValueExpression(lhs, { op: op.value, b: rhs }));
+        collect.push(new ExpressionNode(lhs, { op: op, b: rhs, type: mapped.EXPRESSION_TYPE.VALUE }));
     }
 
-    _readWhileExpressionOperand(collect) {
+    _readWhileExpressionUnit(collect) {
         let current;
 
         while (true) {
@@ -141,48 +139,41 @@ export class SyntaxParser {
     }
 
     _readWhileExpressionLoop(collect) {
-        let current;
-
+        this._readWhileExpressionUnit(collect);
+        
         while (true) {
-            this._readWhileExpressionOperand(collect);
-
-            current                 = this._tokens.peek();
-            const binary_operation  = current.isBinaryTagOperatorExpressionToken();
-            const ternary_operation = current.isTernaryFirstOperatorExpressionToken();
-
-            if (binary_operation || ternary_operation) {
+            let current = this._tokens.peek();
+            if (current.isBinaryTagOperatorExpressionToken()) {
                 collect.push(current);
                 this._tokens.next();
 
-                this._readWhileExpressionOperand(collect);
+                this._readWhileExpressionLoop(collect);
+            } else if (current.isTernaryFirstOperatorExpressionToken()) {
+                collect.push(current);
+                this._tokens.next();
 
-                if (binary_operation && !current.isExpressionStartToken()) {
-                    break;
-                }
+                this._readWhileExpressionLoop(collect);
 
-                if (ternary_operation) {
-                    if (!this._tokens.peek().isTernarySecondOperatorExpressionToken()) {
-                        let expected;
-                        if (current.is(null, mapped.EXPRESSION.TERNARY_1)) {
-                            expected = mapped.EXPRESSION.TERNARY_2;
-                        } else if (current.is(null, mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_1)) {
-                            expected = mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_2;
-                        }
-
-                        this._handleUnexpected({ expected: expected });
+                current = this._tokens.peek();
+                if (!current.isTernarySecondOperatorExpressionToken()) {
+                    let expected;
+                    if (current.is(null, mapped.EXPRESSION.TERNARY_1)) {
+                        expected = mapped.EXPRESSION.TERNARY_2;
+                    } else if (current.is(null, mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_1)) {
+                        expected = mapped.EXPRESSION.TERNARY_LOW_PRECEDENCE_2;
                     }
 
-                    collect.push(current);
-                    this._tokens.next();
-    
-                    this._readWhileExpressionOperand(collect);
-
-                    if (!current.isExpressionStartToken()) {
-                        break;
-                    }
+                    this._handleUnexpected({ expected: expected });
                 }
+
+                collect.push(current);
+                this._tokens.next();
+
+                this._readWhileExpressionLoop(collect);
             } else if (current.isExpressionStartToken()) {
                 collect.push(new Token(mapped.TOKEN_KEY.SYMBOL, mapped.EXPRESSION.IMPLICIT_OPERATOR));
+
+                this._readWhileExpressionLoop(collect);
             } else {
                 break;
             }
@@ -439,7 +430,7 @@ export class SyntaxParser {
                 this._handleUnexpected({ description: `Key "${key}" was specified more than once.` });
             }
 
-            map[key] = mapped.TRIDY_TO_JAVASCRIPT_VALUE.nothing;
+            map[key] = mapped.TRIDY_TO_JAVASCRIPT_VALUE.empty;
         }
 
         this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.METADATA, keys);
@@ -450,7 +441,7 @@ export class SyntaxParser {
 
         while (true) {
             const keys = [ ];
-            let   val  = mapped.TRIDY_TO_JAVASCRIPT_VALUE.nothing;
+            let   val  = mapped.TRIDY_TO_JAVASCRIPT_VALUE.empty;
 
             while (true) {
                 /**

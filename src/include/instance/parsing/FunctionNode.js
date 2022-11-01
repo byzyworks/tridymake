@@ -1,10 +1,11 @@
-export class FunctionNode {
+import { Mapping } from './Mapping.js';
+
+export class FunctionNode extends Mapping {
     constructor(name, opts = { }) {
         opts.args = opts.args ?? [ ];
 
-        this.name = name;
+        super(name);
+
         this.args = opts.args;
     }
-
-    resolve() { }
 }

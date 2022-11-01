@@ -59,6 +59,11 @@ export const TREE_KEY = Object.freeze({
     }
 });
 
+export const EXPRESSION_TYPE = Object.freeze({
+    TAG:   'tag',
+    VALUE: 'value'
+});
+
 export const GENERAL_SYNTAX = Object.freeze({
     EXPRESSION_MARK: '@',
     MAPPING_MARK:    '$',
@@ -186,23 +191,26 @@ export const OPERATION = Object.freeze({
     CONSOLE_EXIT:          'exit',
 });
 
-export const SPECIAL_VALUE = Object.freeze({
-    DELETE_ME: Symbol()
-});
-
 export const JAVASCRIPT_TO_TRIDY_VALUE = Object.freeze({
     true:      'true',
     false:     'false',
     NaN:       'artifact',
     null:      'null',
-    undefined: 'nothing',
+    undefined: 'empty',
+});
+
+export const SPECIAL_VALUE = Object.freeze({
+    ARTIFACT:  Symbol('artifact'),
+    NULL:      Symbol('null'),
+    EMPTY:     Symbol('empty'),
+    UNDEFINED: Symbol('undefined')
 });
 
 export const TRIDY_TO_JAVASCRIPT_VALUE = Object.freeze({
     true:      true,
     false:     false,
-    artifact:  NaN,
-    null:      null,
-    nothing:   undefined,
-    undefined: SPECIAL_VALUE.DELETE_ME
+    artifact:  SPECIAL_VALUE.ARTIFACT,
+    null:      SPECIAL_VALUE.NULL,
+    empty:     SPECIAL_VALUE.EMPTY,
+    undefined: SPECIAL_VALUE.UNDEFINED
 });
