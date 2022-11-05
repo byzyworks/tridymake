@@ -2,7 +2,6 @@ import path              from 'path';
 import { fileURLToPath } from 'url';
 
 import winston from 'winston';
-import morgan  from 'morgan';
 
 import { APP } from './mapped.js';
 
@@ -50,15 +49,4 @@ export const logger = winston.createLogger({
     format:      format,
     transports:  Object.values(transports),
     exitOnError: false
-});
-
-export const httpLogger = morgan('combined', {
-    skip: (req, res) => {
-        return false;
-    },
-    stream: {
-        write: (msg) => {
-            logger.http(msg);
-        }
-    }
 });
