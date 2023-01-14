@@ -1,5 +1,4 @@
-import { isNullish } from './common.js';
-import { logger }    from './logger.js';
+import { logger } from './logger.js';
 
 export class BaseError extends Error {
     constructor(description, opts = { }) {

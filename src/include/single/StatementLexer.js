@@ -1,10 +1,10 @@
-import { TokenLexer } from './TokenLexer.js';
-
 import { isEmpty }     from '../common.js';
 import { SyntaxError } from '../error.js';
 import * as mapped     from '../mapped.js';
 
-import { Token } from '../instance/lexing/Token.js';
+import { Token } from '../instance/stage-1_lexing/Token.js';
+
+import { TokenLexer } from './TokenLexer.js';
 
 export class StatementLexer {
     constructor() {

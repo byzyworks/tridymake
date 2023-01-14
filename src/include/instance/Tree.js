@@ -14,12 +14,10 @@ import * as common from '../common.js';
  * When it no longer serves to access the tree through an iterable, getRaw() can be used to acquire the underlying object.
  */
 export class Tree {
-    constructor(opts = { }) {
-        opts.imported = opts.imported ?? null;
-
+    constructor(imported = null) {
         this._pos         = [ ];
         this._changed_pos = false;
-        this._tree        = opts.imported ?? { };
+        this._tree        = imported ?? { };
         this._ptr         = this._tree;
     }
 
@@ -179,9 +177,15 @@ export class Tree {
         return result;
     }
 
-    enterSetAndLeave(pos, value) {
-        pos = common.isArray(pos) ? pos : [ pos ];
+    enterSetAndLeave(pos, value, opts = { }) {
+        opts.ignore_undefined = opts.ignore_undefined ?? false;
 
+        if (opts.ignore_undefined && (value === undefined)) {
+            return;
+        }
+
+        pos = common.isArray(pos) ? pos : [ pos ];
+    
         for (const part of pos) {
             this.enterPos(part);
         }
@@ -191,7 +195,13 @@ export class Tree {
         }
     }
 
-    enterPutAndLeave(pos, value) {
+    enterPutAndLeave(pos, value, opts = { }) {
+        opts.ignore_undefined = opts.ignore_undefined ?? false;
+
+        if (opts.ignore_undefined && (value === undefined)) {
+            return;
+        }
+
         pos = common.isArray(pos) ? pos : [ pos ];
 
         for (const part of pos) {
@@ -250,6 +260,12 @@ export class Tree {
         }
     }
 
+    forNested(nest_key, callback) {
+        for (const nested of this[nest_key]) {
+            callback(nested);
+        }
+    }
+
     leaveNested(nest_key) {
         while ((this.leavePos() !== nest_key) && !this.isPosGlobalRoot());
     }
@@ -299,17 +315,20 @@ export class Tree {
         }
     }
 
-    traverse(nest_key, callback) {
+    traverseSync(nest_key, callback) {
         this.enterPos(nest_key);
         if (!this.isPosEmpty()) {
             this.enterPos(0);
             while (!this.isPosUndefined()) {
-                const act = callback();
-                if (act === 'break') {
+                const tested = new Tree(this.getPosValue());
+                const action = callback(tested);
+
+                if (action === 'break') {
                     break;
-                } else if (act === 'continue') {
+                } else if (action === 'continue') {
                     continue;
                 }
+
                 this.nextItem();
             }
             this.leavePos();
@@ -317,22 +336,44 @@ export class Tree {
         this.leavePos();
     }
 
-    async traverseAsync(nest_key, callback) {
+    async traverseSerial(nest_key, callback) {
         this.enterPos(nest_key);
         if (!this.isPosEmpty()) {
             this.enterPos(0);
             while (!this.isPosUndefined()) {
-                const act = await callback();
-                if (act === 'break') {
+                const tested = new Tree(this.getPosValue());
+                const action = await callback(tested);
+
+                if (action === 'break') {
                     break;
-                } else if (act === 'continue') {
+                } else if (action === 'continue') {
                     continue;
                 }
+
                 this.nextItem();
             }
             this.leavePos();
         }
         this.leavePos();
+    }
+
+    async traverseParallel(nest_key, callback) {
+        const promises = [ ];
+
+        this.enterPos(nest_key);
+        if (!this.isPosEmpty()) {
+            this.enterPos(0);
+            while (!this.isPosUndefined()) {
+                const tested = new Tree(this.getPosValue());
+                promises.push(callback(tested));
+
+                this.nextItem();
+            }
+            this.leavePos();
+        }
+        this.leavePos();
+
+        await Promise.all(promises);
     }
 
     getRaw() {

@@ -1,19 +1,19 @@
-import { ExpressionParser } from './ExpressionParser.js';
-
 import * as common from '../common.js';
 import * as error  from '../error.js';
 import * as mapped from '../mapped.js';
 
-import { Token } from '../instance/lexing/Token.js';
-
-import { FunctionNode }   from '../instance/parsing/FunctionNode.js';
-import { OperationNode }  from '../instance/parsing/OperationNode.js';
-import { Tag }            from '../instance/parsing/Tag.js';
-import { ExpressionNode } from '../instance/parsing/ExpressionNode.js';
-import { Variable }       from '../instance/parsing/Variable.js';
-
 import { List } from '../instance/List.js';
 import { Tree } from '../instance/Tree.js';
+
+import { Artifact }       from '../instance/stage-2_parsing/Artifact.js';
+import { ExpressionNode } from '../instance/stage-2_parsing/ExpressionNode.js';
+import { FunctionNode }   from '../instance/stage-2_parsing/FunctionNode.js';
+import { OperationNode }  from '../instance/stage-2_parsing/OperationNode.js';
+import { Tag }            from '../instance/stage-2_parsing/Tag.js';
+import { Token }          from '../instance/stage-1_lexing/Token.js';
+import { Variable }       from '../instance/stage-2_parsing/Variable.js';
+
+import { ExpressionParser } from './ExpressionParser.js';
 
 export class SyntaxParser {
     _EMPTY_RETURN  = Symbol();
@@ -78,7 +78,7 @@ export class SyntaxParser {
             this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
         }
 
-        current = this._tokens.peek();
+        const current = this._tokens.peek();
         if (current.isBinaryValueOperatorExpressionToken()) {
             op = current.value;
             this._tokens.next();
@@ -194,12 +194,25 @@ export class SyntaxParser {
         return expression;
     }
 
-    _wordToPrimitive(word) {
+    _resolvePrimitive(word) {
         const case_insensitive_word = word.toLowerCase();
+        
         for (const keyword in mapped.TRIDY_TO_JAVASCRIPT_VALUE) {
             if (case_insensitive_word === keyword) {
+                /**
+                 * Coerced at the syntax stage so multiple keys assigned the same unique artifact in one statement do not receive a different one.
+                 * The artifact may be duplicated to one or more keys at this point, so distinguishing statement-by-statement after becomes impossible.
+                 * This is also because an artifact is effectively meant to stand in as a function call signature, 
+                 * where the result may differ by call, but the call itself, including the function name and arguments, is always the same.
+                 * Since functional artifacts are like this, it equivalently makes sense to resolve a direct reference to 'artifact' at the syntax stage.
+                 */
+
                 return mapped.TRIDY_TO_JAVASCRIPT_VALUE[case_insensitive_word];
             }
+        }
+
+        if (case_insensitive_word === 'artifact') {
+            return new Artifact();
         }
 
         if (!isNaN(word)) {
@@ -225,10 +238,12 @@ export class SyntaxParser {
             return word;
         }
 
-        return this._wordToPrimitive(word);
+        return this._resolvePrimitive(word);
     }
 
     _readWhileString() {
+        let current = this._tokens.peek();
+
         if (!current.is(mapped.TOKEN_KEY.STRING)) {
             return this._EMPTY_RETURN;
         }
@@ -237,8 +252,9 @@ export class SyntaxParser {
 
         do {
             str += current.value;
-
             this._tokens.next();
+
+            current = this._tokens.peek();
         } while (current.is(mapped.TOKEN_KEY.STRING))
 
         return str;
@@ -266,12 +282,14 @@ export class SyntaxParser {
 
         const current = this._tokens.peek();
 
-        if (!current.is(mapped.TOKEN_KEY.WORD)) {
-            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+        let key;
+        if (current.is(mapped.TOKEN_KEY.WORD)) {
+            key = current.value;
+            this._tokens.next();
+        } else {
+            // A null tag call (just "$@") means the module's own value instead of its metadata/tags.
+            key = null;
         }
-
-        const key = current.value;
-        this._tokens.next();
 
         return new Tag(key);
     }
@@ -321,21 +339,21 @@ export class SyntaxParser {
 
         this._tokens.next();
 
-        let   val;
+        let   value;
         const current = this._tokens.peek();
         if (current.is(mapped.TOKEN_KEY.WORD)) {
-            val = this._readVariable();
+            value = this._readVariable();
         } else if (current.is(null, mapped.GENERAL_SYNTAX.STORAGE_MARK)) {
-            val = this._readTag();
+            value = this._readTag();
         } else if (current.is(null, mapped.GENERAL_SYNTAX.FUNCTION_START)) {
-            val = this._readWhileFunction();
+            value = this._readWhileFunction();
         }
 
-        if (val === this._EMPTY_RETURN) {
+        if (value === this._EMPTY_RETURN) {
             this._handleUnexpected({ expected: this._DEBUG_MESSAGE.MAPPING });
         }
 
-        return val;
+        return value;
     }
 
     _readWhileStringFeed() {
@@ -356,8 +374,17 @@ export class SyntaxParser {
         this._handleUnexpected();
     }
 
+    _handleStringOperation() {
+        const str = this._readWhileStringFeed();
+        if (str === this._EMPTY_RETURN) {
+            this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+        }
+
+        this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, str);
+    }
+
     _handleWordOperation() {
-        const word = this._readWord();
+        const word = this._readWord({ force_string: true });
         if (word === this._EMPTY_RETURN) {
             this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
         }
@@ -403,7 +430,16 @@ export class SyntaxParser {
     _handleWordExpressionLoopOperation() {
         this._handleWordOperation();
 
-        this._handleExpressionLoopOperation();
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EXPRESSION_MARK)) {
+            this._handleExpressionLoopOperation();
+        } else {
+            const exp = this._readWhileStringFeed();
+            if (exp === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+            }
+
+            this._astree.enterSetAndLeave(mapped.TREE_KEY.ASTREE.EXPRESSION, exp);
+        }
     }
 
     _handleKeyOperation() {
@@ -440,8 +476,8 @@ export class SyntaxParser {
         const map = { };
 
         while (true) {
-            const keys = [ ];
-            let   val  = mapped.TRIDY_TO_JAVASCRIPT_VALUE.empty;
+            const keys  = [ ];
+            let   value = mapped.TRIDY_TO_JAVASCRIPT_VALUE.empty;
 
             while (true) {
                 /**
@@ -469,7 +505,7 @@ export class SyntaxParser {
                          * Therefore, it would cause ambiguity with something like "var a = 1" if there happened to be a variable already with the key "1".
                          * Mappings solve this, allowing "var a = 1" to mean assigning the value 1, and "var a = $1" to mean assigning the value stored in the variable "1". 
                          */
-                        val = this._wordToPrimitive(key);
+                        value = this._resolvePrimitive(key);
                     }
 
                     break;
@@ -480,8 +516,8 @@ export class SyntaxParser {
                 this._tokens.next();
 
                 if (!this._tokens.peek().is(mapped.TOKEN_KEY.WORD)) {
-                    val = this._readWhileStringFeed();
-                    if (val === this._EMPTY_RETURN) {
+                    value = this._readWhileStringFeed();
+                    if (value === this._EMPTY_RETURN) {
                         this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
                     }
 
@@ -498,7 +534,7 @@ export class SyntaxParser {
                     this._handleUnexpected({ description: `Key "${key}" was specified more than once.` });
                 }
 
-                map[key] = val;
+                map[key] = value;
             }
 
             if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.DELIMITER)) {
@@ -512,9 +548,30 @@ export class SyntaxParser {
     }
 
     _handleDataMetadataOperation() {
-        const val = this._readWhileStringFeed();
-        if (val !== this._EMPTY_RETURN) {
-            this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, val);
+        let data;
+        let default_tag = false;
+
+        data = this._readWord({ force_string: false });
+        if (data === this._EMPTY_RETURN) {
+            data = this._readWhileStringFeed();
+            if (data !== this._EMPTY_RETURN) {
+                this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, data);
+            }
+        } else {
+            this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.DATA, data);
+
+            /**
+             * "Default tag" means a module created by "new a;" can be addressed with "@a".
+             * Tags/metadata keys can only be words, not just any random string, so it only works if the value of the module is given as a word.
+             * "new "foo bar";" will not create a new tag, so @"foo bar" doesn't work, but would still be addressable via "@[$@ == "foo bar"]".
+             * A default tag is only applied after the metadata is applied, since the user may explicitly have that same tag as metadata and give it a different value.
+             * e.g. "new a [a = 5];".
+             * Hence, the default tag doesn't override anything the user provides.
+             * Explicit artifacts are exceptions since they are effectively still just random strings.
+             */
+            if (!(data instanceof Artifact)) {
+                default_tag = true;
+            }
         }
 
         if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_START)) {
@@ -527,6 +584,17 @@ export class SyntaxParser {
             }
 
             this._tokens.next();
+        }
+
+        if (default_tag === true) {
+            let metadata = this._astree.enterGetAndLeave(mapped.TREE_KEY.SHARED.METADATA);
+            if (common.isNullish(metadata)) {
+                metadata       = { };
+                metadata[data] = mapped.SPECIAL_VALUE.EMPTY;
+                this._astree.enterSetAndLeave(mapped.TREE_KEY.SHARED.METADATA, metadata);
+            } else if (!metadata.hasOwnProperty(data)) {
+                metadata[data] = mapped.SPECIAL_VALUE.EMPTY;
+            }
         }
     }
 
@@ -549,6 +617,10 @@ export class SyntaxParser {
             this._tokens.next();
         }
 
+        if (op_token.isConsoleOperationToken() && (this._interactive === false)) {
+            this._handleUnexpected({ description: `The operation ${op_token.value} is not useable outside of an interactive context.` });
+        }
+
         if (op_token.isDataMetadataSyntaxOperationToken()) {
             this._handleDataMetadataOperation();
         } else if (op_token.isKeyValueSyntaxOperationToken()) {
@@ -563,6 +635,8 @@ export class SyntaxParser {
             this._handleExpressionOperation();
         } else if (op_token.isWordOnlySyntaxOperationToken()) {
             this._handleWordOperation();
+        } else if (op_token.isStringSyntaxOperationToken()) {
+            this._handleStringOperation();
         }
 
         if (!this._tokens.peek().isSocketEndToken()) {
@@ -654,6 +728,11 @@ export class SyntaxParser {
          */
         opts.mode_token = opts.mode_token ?? new Token(mapped.TOKEN_KEY.WORD, mapped.OPERATION.BLOCK);
 
+        // Handles "empty" statements.
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.STATEMENT_END)) {
+            return;
+        }
+
         let mode_token = opts.mode_token;
         let nesting    = 0;
 
@@ -688,22 +767,24 @@ export class SyntaxParser {
         opts._interactive = opts.interactive ?? false;
 
         this._tokens      = new List(tokens);
-        this._astree      = new Tree({ imported: new OperationNode() });
+        this._astree      = new Tree(new OperationNode());
         this._interactive = opts.interactive;
 
-        this._astree.enterNested(mapped.TREE_KEY.SHARED.NESTED);
-        while (true) {
-            this._handleStatement();
+        if (!this._tokens.isEmpty()) {
+            this._astree.enterNested(mapped.TREE_KEY.SHARED.NESTED);
+            while (true) {
+                this._handleStatement();
 
-            if (this._tokens.isEnd() || (mapped.global.flags.exit !== true)) {
-                break;
-            }
+                if (this._tokens.isEnd() || (mapped.global.flags.exit !== true)) {
+                    break;
+                }
 
-            if (!this._astree.isPosEmpty()) {
-                this._astree.nextItem(mapped.TREE_KEY.SHARED.NESTED);
+                if (!this._astree.isPosEmpty()) {
+                    this._astree.nextItem(mapped.TREE_KEY.SHARED.NESTED);
+                }
             }
+            this._astree.leaveNested(mapped.TREE_KEY.SHARED.NESTED);
         }
-        this._astree.leaveNested(mapped.TREE_KEY.SHARED.NESTED);
 
         return this._astree.getRaw();
     }

@@ -6,13 +6,11 @@
 
 import util from 'util'; //DEBUG
 
-//import { Composer }       from './Composer.js';
+import { isEmpty } from '../common.js';
+
+import { Composer }       from './Composer.js';
 import { SyntaxParser }   from './SyntaxParser.js';
 import { StatementLexer } from './StatementLexer.js';
-
-//import * as common from '../common.js';
-//import * as error  from '../error.js';
-//import * as mapped from '../mapped.js';
 
 /**
  * Database class for interpreting Tridy commands/statements.
@@ -34,7 +32,7 @@ export class Tridy {
     constructor() {
         this._lexer    = new StatementLexer();
         this._parser   = new SyntaxParser();
-        //this._composer = new Composer();
+        this._composer = new Composer();
     }
 
     /**
@@ -60,40 +58,47 @@ export class Tridy {
 
         this._lexer.load(input, { filepath: opts.filepath });
 
-        while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
-            astree = this._parser.parse(tokens, { interactive: opts.interactive });
-
-            console.log(util.inspect(astree, {showHidden: false, depth: null, colors: true})); //DEBUG
-            
-            /*
-            if (mapped.global.flags.exit === true) {
-                if ((opts.filepath !== null) || !opts.interactive) {
-                    mapped.global.flags.exit = false;
-
-                    throw new error.SyntaxError(`The @exit command does not work in non-interactive contexts such as scripts or inside server mode.`);
+        if (opts.interactive) {
+            while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
+                if (isEmpty(tokens)) {
+                    continue;
                 }
 
-                break;
-            }
-
-            if (mapped.global.flags.clear === true) {
-                mapped.global.flags.clear = false;
-
-                if ((opts.filepath !== null) || !opts.interactive) {
-                    throw new error.SyntaxError(`The @clear command does not work in non-interactive contexts such as scripts or inside server mode.`);
+                astree = this._parser.parse(tokens, { interactive: opts.interactive });
+                astree = Object.freeze(astree);
+    
+                console.log(util.inspect(astree, {showHidden: false, depth: null, colors: true})); //DEBUG
+    
+                if (isEmpty(astree)) {
+                    continue;
                 }
+        
+                await this._composer.compose(astree, { interactive: opts.interactive });
 
-                console.clear();
-
-                continue;
+                console.log(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true})); //DEBUG
+            }
+        } else {
+            const batch = [ ];
+            while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
+                batch.push(...tokens);
             }
 
-            if (common.isEmpty(astree)) {
-                continue;
+            if (isEmpty(batch)) {
+                return;
+            }
+
+            astree = this._parser.parse(batch, { interactive: opts.interactive });
+            astree = Object.freeze(astree);
+
+            console.log(util.inspect(astree, { showHidden: false, depth: null, colors: true})); //DEBUG
+
+            if (isEmpty(astree)) {
+                return;
             }
     
-            await this._composer.compose(astree);
-            */
+            await this._composer.compose(astree, { interactive: opts.interactive });
+
+            console.log(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true})); //DEBUG
         }
     }
 
@@ -116,5 +121,16 @@ export class Tridy {
      */
     clearCarry() {
         this._lexer.clear();
+    }
+
+    /**
+     * Creates/appends a global (cross-query) namespace by lexically-upgrading the root namespace (so it's only virtually the root namespace)
+     * No queries following can downgrade this namespace.
+     * 
+     * @public
+     * @method
+     */
+    globalize() {
+        this._composer.upgradeNamespace();
     }
 }

@@ -59,31 +59,32 @@ program
     .version(mapped.APP.VERSION)
     .description('Imperative programming language interpreter specially-made for dynamic/DRY-resistant config generation.')
     .addOption(
-        new Option('-a, --args <args...>', 'Global (cross-script) variables that are retained over the session, given as key-value pairs (--args key value key value ...).')
+        new Option('-c, --command <commands>', 'Execute a string of Tridy commands. Executes BEFORE scripts provided via. "-f" or "--file".')
     )
     .addOption(
-        new Option('-c, --command <commands>', 'Pre-load a Tridy database from a string of Tridy commands.')
-            .conflicts('file')
-    )
-    .addOption(
-        new Option('-f, --file <paths...>', 'Pre-load a Tridy database from one or several files.')
-            .conflicts('command')
-    )
-    .addOption(
-        new Option('-i, --sources <paths...>', 'Folders to search Tridy source functions out of.')
-            .default(mapped.global.defaults.include.sources)
-    )
-    .addOption(
-        new Option('-i, --sinks <paths...>', 'Folders to search Tridy sink functions out of.')
-            .default(mapped.global.defaults.include.sinks)
+        new Option('-f, --file <paths...>', 'Execute Tridy commands from one or several files. Executes AFTER commands provided via. "-c" or "--command".')
     )
     .addOption(
         new Option('-l, --log-level <level>', 'The log level used, as one of NPM\'s available log levels')
             .choices(Object.keys(log_levels))
             .default(mapped.global.defaults.log_level)
     )
+    .addOption(
+        new Option('-i, --sources <paths...>', 'Folders to search Tridy source functions out of.')
+            .default(mapped.global.defaults.include.sources)
+    )
+    .addOption(
+        new Option('--null-artifacts', 'Export artifacts as null instead of as unique hexadecimal strings.')
+    )
+    .addOption(
+        new Option('-o, --sinks <paths...>', 'Folders to search Tridy sink functions out of.')
+            .default(mapped.global.defaults.include.sinks)
+    )
     .hook('preAction', async (thisCommand, actionCommand) => {
         const opts = program.opts();
+
+        // Handle flags.
+        mapped.global.null_artifacts = opts.nullArtifacts ?? mapped.global.null_artifacts;
 
         // Handle log level before everything else (that may call logging functionality).
         parseLogLevel(opts.logLevel);
@@ -95,7 +96,11 @@ program
 
         if (opts.command) {
             await db.query(opts.command, { accept_carry: false });
-        } else if (opts.file) {
+
+            db.globalize();
+        }
+        
+        if (opts.file) {
             for (let filepath of opts.file) {
                 filepath = path.join(mapped.APP.ROOT, filepath);
 

@@ -3,7 +3,6 @@ import * as mapped from '../mapped.js';
 import { Stack } from '../instance/Stack.js';
 import { Queue } from '../instance/Queue.js';
 
-import { DepthMarkerSet } from '../instance/stage-2_parsing/DepthMarkerSet.js';
 import { ExpressionNode } from '../instance/stage-2_parsing/ExpressionNode.js';
 import { Token }          from '../instance/stage-1_lexing/Token.js'
 
@@ -94,82 +93,106 @@ export class ExpressionParser {
      * Fortunately, it's easy from the expression to determine if a terminal is final or not, based on it containing sub-expressions with transitive operators.
      * It can be made a requirement specifically that "final" terminals are evathis._tokens.next();luated at a last level of the context being evaluated, and not before or after.
      */
-    static _createPositionHelpers(expression) {
-        if (expression.isTerminal()) {
-            expression.depth = new DepthMarkerSet();
-            expression.depth.add(0);
-        } else {
-            const token = new Token(null, expression.op);
+    static _createPositionHelpers(test, final = null) {
+        const token = new Token(null, test.op);
 
-            let a;
-            if (expression.a instanceof ExpressionNode) {
-                a = this._createPositionHelpers(expression.a);
-
-                if (token.isUnaryOperatorExpressionToken()) {
-                    expression.depth = a;
-
-                    return expression.depth;
+        if (final === null) {
+            if (token.isNestedOperatorExpressionToken()) {
+                let evaluated = 'a';
+                let affected  = 'b';
+                if (token.isNonTransitiveNestedOperatorExpressionToken()) {
+                    evaluated = 'b';
+                    affected  = 'a';
                 }
-            }
 
-            let b;
-            if (expression.b instanceof ExpressionNode) {
-                expression.depth = new DepthMarkerSet();
-
-                b = this._createPositionHelpers(expression.b);
-
-                if (token.isForwardTransitiveNestedOperatorExpressionToken()) {
-                    if (token.isRecursiveForwardTransitiveNestedOperatorExpressionToken()) {
-                        expression.depth.setUpper(b.getMinimum() + 1);
+                if (test[evaluated] instanceof ExpressionNode) {
+                    if (test[evaluated].isTerminal()) {
+                        test[evaluated].final = false;
                     } else {
-                        b = b.copy();
-                        b.offset(1);
-                        expression.depth.merge(b);
+                        this._createPositionHelpers(test[evaluated], false);
                     }
-                } else if (token.isBackwardTransitiveNestedOperatorExpressionToken()) {
-                    if (token.isRecursiveBackwardTransitiveNestedOperatorExpressionToken()) {
-                        expression.depth.setLower(b.getMinimum() - 1);
+                }
+
+                if (test[affected] instanceof ExpressionNode) {
+                    if (test[affected].isTerminal()) {
+                        test[affected].final = true;
                     } else {
-                        b = b.copy();
-                        b.offset(-1);
-                        expression.depth.merge(b);
+                        this._createPositionHelpers(test[affected], null);
                     }
+                }
+            } else {
+                if (test.isTerminal()) {
+                    test.final = true;
                 } else {
-                    a.forEach((result) => {
-                        expression.depth.add(result);
-                    });
-                    b.forEach((result) => {
-                        expression.depth.add(result);
-                    });
-                }
-
-                if (token.isBinaryOperatorExpressionToken()) {
-                    return expression.depth;
+                    if (test.a instanceof ExpressionNode) {
+                        if (test.a.isTerminal()) {
+                            test.a.final = true;
+                        } else {
+                            this._createPositionHelpers(test.a, null);
+                        }
+                    }
+    
+                    if (!token.isUnaryOperatorExpressionToken()) {
+                        if (test.b instanceof ExpressionNode) {
+                            if (test.b.isTerminal()) {
+                                test.b.final = true;
+                            } else {
+                                this._createPositionHelpers(test.b, null);
+                            }
+                        }
+    
+                        if (token.isTernaryFirstOperatorExpressionToken()) {
+                            if (test.c instanceof ExpressionNode) {
+                                if (test.c.isTerminal()) {
+                                    test.c.final = true;
+                                } else {
+                                    this._createPositionHelpers(test.c, null);
+                                }
+                            }
+                        }
+                    }
                 }
             }
-
-            let c;
-            if (expression.c instanceof ExpressionNode) {
-                c = this._createPositionHelpers(expression.c);
-
-                for (const result of c) {
-                    expression.depth.push(result);
+        } else {
+            if (test.isTerminal()) {
+                test.final = final;
+            } else {
+                if (test.a instanceof ExpressionNode) {
+                    if (test.a.isTerminal()) {
+                        test.a.final = final;
+                    } else {
+                        this._createPositionHelpers(test.a, final);
+                    }
                 }
-
-                if (token.isBinaryOperatorExpressionToken()) {
-                    return expression.depth;
+    
+                if (!token.isUnaryOperatorExpressionToken()) {
+                    if (test.b instanceof ExpressionNode) {
+                        if (test.b.isTerminal()) {
+                            test.b.final = final;
+                        } else {
+                            this._createPositionHelpers(test.b, final);
+                        }
+                    }
+    
+                    if (token.isTernaryFirstOperatorExpressionToken()) {
+                        if (test.c instanceof ExpressionNode) {
+                            if (test.c.isTerminal()) {
+                                test.c.final = final;
+                            } else {
+                                this._createPositionHelpers(test.c, final);
+                            }
+                        }
+                    }
                 }
             }
         }
-
-        return expression.depth;
     }
 
     static parse(input) {
         input = this._toPostfix(input);
         input = this._toTree(input);
         
-        //this._createPositionHelpers(input, null);
+        this._createPositionHelpers(input, null);
 
         return input;
     }

@@ -1,11 +1,12 @@
-import { CharLexer } from './CharLexer.js';
-
 import { not }         from '../common.js';
 import { SyntaxError } from '../error.js';
 import * as mapped     from '../mapped.js';
 
 import { Stack } from '../instance/Stack.js';
-import { Token } from '../instance/lexing/Token.js';
+
+import { Token } from '../instance/stage-1_lexing/Token.js';
+
+import { CharLexer } from './CharLexer.js';
 
 export class TokenLexer {
     constructor() {
@@ -208,7 +209,7 @@ export class TokenLexer {
     _readRaw() {
         const pos = this._lexer.getPos();
 
-        let type = this._mode.peek();
+        let type = mapped.TOKEN_KEY.STRING;
 
         return new Token(type, this._readWhileEscaped(), pos);
     }

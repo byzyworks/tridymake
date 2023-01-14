@@ -1,6 +1,5 @@
 import { isNullish, setUnlessNullish } from '../../common.js';
-
-import { EXPRESSION_TYPE } from '../../mapped.js';
+import { EXPRESSION_TYPE }             from '../../mapped.js';
 
 export class ExpressionNode {
     constructor(a, opts = { }) {
