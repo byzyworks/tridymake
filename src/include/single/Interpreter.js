@@ -7,6 +7,7 @@
 import util from 'util'; //DEBUG
 
 import { isEmpty } from '../common.js';
+import { logger }  from '../logger.js';
 
 import { Composer }       from './Composer.js';
 import { SyntaxParser }   from './SyntaxParser.js';
@@ -18,7 +19,7 @@ import { StatementLexer } from './StatementLexer.js';
  * A Tridy database includes three parts: a tokenizer, parser, and composer.
  * Each may be stateful to varying degrees.
  * 
- * Interacting with this class is all done through the query() method, which automatically pipes the input through these separate components in order.
+ * Interacting with this class is all done through the query() method, which automatically pipes the input through these separate components in ordered stages.
  * 
  * @class
  * @property {StatementParser} _lexer    Extracts tokens from the input string, and manages statement-queuing.
@@ -43,7 +44,7 @@ export class Tridy {
      * @method
      * @param   {String}  input             Tridy command(s)/statement(s), as a string.
      * @param   {Boolean} opts.accept_carry True to statefully retain tokens from incomplete statements, false to throw SyntaxError if receiving an incomplete statement. Default is false.
-     * @param   {Boolean} opts.interactive  Allows interactive control commands like @clear and @exit to be effective. Default is false.
+     * @param   {Boolean} opts.interactive  Allows interactive control commands like 'clear' and 'exit' to be effective. Default is false.
      * @param   {String}  opts.filepath     Path of the file that is the source of the command(s)/statement(s). Default is null.
      * @throws  {SyntaxError}               Thrown if the input isn't valid Tridy code.
      * @throws  {FunctionError}             Thrown if a plug-in function fail to execute.
@@ -60,6 +61,8 @@ export class Tridy {
 
         if (opts.interactive) {
             while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
+                logger.debug(util.inspect(tokens, { showHidden: false, depth: null, colors: true}));
+
                 if (isEmpty(tokens)) {
                     continue;
                 }
@@ -67,7 +70,7 @@ export class Tridy {
                 astree = this._parser.parse(tokens, { interactive: opts.interactive });
                 astree = Object.freeze(astree);
     
-                console.log(util.inspect(astree, {showHidden: false, depth: null, colors: true})); //DEBUG
+                logger.debug(util.inspect(astree, {showHidden: false, depth: null, colors: true}));
     
                 if (isEmpty(astree)) {
                     continue;
@@ -75,13 +78,15 @@ export class Tridy {
         
                 await this._composer.compose(astree, { interactive: opts.interactive });
 
-                console.log(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true})); //DEBUG
+                logger.debug(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true}));
             }
         } else {
             const batch = [ ];
             while (tokens = this._lexer.next({ accept_carry: opts.accept_carry })) {
                 batch.push(...tokens);
             }
+
+            logger.debug(util.inspect(batch, { showHidden: false, depth: null, colors: true}));
 
             if (isEmpty(batch)) {
                 return;
@@ -90,7 +95,7 @@ export class Tridy {
             astree = this._parser.parse(batch, { interactive: opts.interactive });
             astree = Object.freeze(astree);
 
-            console.log(util.inspect(astree, { showHidden: false, depth: null, colors: true})); //DEBUG
+            logger.debug(util.inspect(astree, { showHidden: false, depth: null, colors: true}));
 
             if (isEmpty(astree)) {
                 return;
@@ -98,7 +103,7 @@ export class Tridy {
     
             await this._composer.compose(astree, { interactive: opts.interactive });
 
-            console.log(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true})); //DEBUG
+            logger.debug(util.inspect(this._composer.getStorage(), {showHidden: false, depth: null, colors: true}));
         }
     }
 
@@ -121,16 +126,5 @@ export class Tridy {
      */
     clearCarry() {
         this._lexer.clear();
-    }
-
-    /**
-     * Creates/appends a global (cross-query) namespace by lexically-upgrading the root namespace (so it's only virtually the root namespace)
-     * No queries following can downgrade this namespace.
-     * 
-     * @public
-     * @method
-     */
-    globalize() {
-        this._composer.upgradeNamespace();
     }
 }

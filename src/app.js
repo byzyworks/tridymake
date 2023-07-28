@@ -28,41 +28,34 @@ const parseLogLevel = (log_level) => {
     mapped.global.log_level = log_level;
 }
 
-const parseTridyArgs = (args) => {
-    if (args.length % 2 !== 0) {
-        program.error(`The number of arguments passed over to Tridymake should be an even number (the number passed was ${args.length}).`);
+const parseCommands = async (commands) => {
+    await db.query(commands, { accept_carry: false });
+}
+
+const parseFile = async (filepath) => {
+    mapped.global.scriptname = filepath ?? mapped.defaults.global.scriptname;
+        
+    let input;
+
+    try {
+        input = await fs.promises.readFile(mapped.global.scriptname, 'utf-8');
+    } catch (err) {
+        ErrorHandler.handle(err);
     }
 
-    // "vars" is referring to variables internal to Tridy, not JavaScript (in other words, as part of the application).
-    const global_vars = { };
-
-    const variable_name = new RegExp(mapped.REGEX_MAP.WORD);
-    let   key           = null;
-    for (const arg of args) {
-        if (key === null) {
-            if (!variable_name.test(arg)) {
-                program.error(`Argument names (and variable names in general) can only contain letters (lower- and upper-case), digits, or underscores.`);
-            }
-
-            key = arg;
-        } else {
-            global_vars[key] = arg;
-
-            key = null;
-        }
-    }
-
-    mapped.varmap.push(global_vars);
-};
+    await db.query(input, { accept_carry: false, filepath: path.resolve(mapped.global.scriptname) });
+}
 
 program
     .version(mapped.APP.VERSION)
     .description('Imperative programming language interpreter specially-made for dynamic/DRY-resistant config generation.')
     .addOption(
-        new Option('-c, --command <commands>', 'Execute a string of Tridy commands. Executes BEFORE scripts provided via. "-f" or "--file".')
+        new Option('-c, --commands <commands>', 'Execute a string of Tridy commands.')
+            .conflicts('file')
     )
     .addOption(
-        new Option('-f, --file <paths...>', 'Execute Tridy commands from one or several files. Executes AFTER commands provided via. "-c" or "--command".')
+        new Option('-f, --file <path>', 'Execute Tridy commands from a (named) script file.')
+            .conflicts('command')
     )
     .addOption(
         new Option('-l, --log-level <level>', 'The log level used, as one of NPM\'s available log levels')
@@ -74,62 +67,25 @@ program
             .default(mapped.global.defaults.include.sources)
     )
     .addOption(
-        new Option('--null-artifacts', 'Export artifacts as null instead of as unique hexadecimal strings.')
-    )
-    .addOption(
         new Option('-o, --sinks <paths...>', 'Folders to search Tridy sink functions out of.')
             .default(mapped.global.defaults.include.sinks)
     )
     .hook('preAction', async (thisCommand, actionCommand) => {
         const opts = program.opts();
 
-        // Handle flags.
-        mapped.global.null_artifacts = opts.nullArtifacts ?? mapped.global.null_artifacts;
-
-        // Handle log level before everything else (that may call logging functionality).
         parseLogLevel(opts.logLevel);
 
-        // Loads cross-script (Tridy-global) variables.
-        if (opts.args !== undefined) {
-            parseTridyArgs(opts.args);
-        }
-
-        if (opts.command) {
-            await db.query(opts.command, { accept_carry: false });
-
-            db.globalize();
-        }
-        
-        if (opts.file) {
-            for (let filepath of opts.file) {
-                filepath = path.join(mapped.APP.ROOT, filepath);
-
-                let input;
-
-                try {
-                    input = await fs.promises.readFile(filepath, 'utf-8');
-                } catch (err) {
-                    ErrorHandler.handle(err);
-
-                    continue;
-                }
-        
-                await db.query(input, { accept_carry: false, filepath: path.resolve(filepath) });
-            }
+        if (opts.commands) {
+            parseCommands(opts.commands);
+        } else {
+            parseFile(opts.file);
         }
     })
 ;
 
 program
-    .command('make')
+    .command('bake')
     .description('Run Tridy scripts/commands and exit.')
-    .action(async (opts, command) => {
-        opts = command.optsWithGlobals();
-
-        if (!opts.command && !opts.file) {
-            program.error('error: either --command or --file need to be given with the "make" command.');
-        }
-    })
 ;
 
 program

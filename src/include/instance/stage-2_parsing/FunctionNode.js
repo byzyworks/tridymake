@@ -4,23 +4,12 @@ import { Mapping }  from './Mapping.js';
 export class FunctionNode extends Mapping {
     constructor(name, opts = { }) {
         opts.args = opts.args ?? [ ];
+        opts.alt  = opts.alt  ?? null;
 
         super(name);
 
         this.args = opts.args;
-    }
-
-    toArtifact() {
-        let signature = [ ];
-
-        signature.push(this.key);
-        for (const arg of this.args) {
-            signature.push(arg);
-        }
-
-        signature = new Artifact(signature);
-
-        return signature;
+        this.alt  = opts.alt;
     }
 
     execute() {

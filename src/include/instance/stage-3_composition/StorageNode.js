@@ -62,68 +62,106 @@ export class StorageNode {
         return this[mapped.TREE_KEY.SHARED.METADATA][key];
     }
 
-    forMetadata(callback) {
-        for (const key of Object.keys(this[mapped.TREE_KEY.SHARED.NESTED])) {
-            const value = this[mapped.TREE_KEY.SHARED.NESTED][key];
-
-            callback(key, value);
-        }
-    }
-
-    forNested(callback, opts = { }) {
-        opts.predicate = opts.predicate ?? null;
-        opts.recursive = opts.recursive ?? false;
-
-        let response = null;
-        for (const nested of this[mapped.TREE_KEY.SHARED.NESTED]) {
-            response = callback(nested);
-
-            if (opts.recursive === true) {
-                if (common.isNullish(opts.predicate) || opts.predicate(response)) {
-                    nested.forNested(callback, opts);
-                }
-            } else {
-                if (!common.isNullish(opts.predicate) && opts.predicate(response)) {
-                    nested.forNested(callback, opts);
-                }
-            }
-        }
-    }
-
     getParent() {
         return this._parent;
     }
 
-    forParents(callback) {
-        opts.predicate = opts.predicate ?? null;
-        opts.recursive = opts.recursive ?? false;
-
+    getParents() {
         const parents = [ ];
 
         let parent = this._parent;
         while (!common.isNullish(parent)) {
             parents.push(parent);
 
-            if (opts.recursive !== true) {
-                break;
-            }
-
-            const parent = parent.parent;
+            parent = parent.parent;
         }
 
-        let response = null;
-        for (const parent of parents) {
-            response = callback(parent);
+        return parents;
+    }
 
-            if (opts.recursive === true) {
-                if (!common.isNullish(opts.predicate) && !opts.predicate(response)) {
+    getSiblings() {
+        const siblings = [ ];
+
+        if (!common.isNullish(this._parent)) {
+            this._parent.forNested((child) => {
+                if (child !== this) {
+                    siblings.push(child);
+                }
+            })
+        }
+
+        return siblings;
+    }
+
+    getChildren() {
+        return this[mapped.TREE_KEY.SHARED.NESTED];
+    }
+
+    async _forEach(direction, callback, opts = { }) {
+        opts.recursive = opts.recursive ?? false;
+        opts.ordered   = opts.ordered   ?? true;
+
+        let nodes;
+        switch (direction) {
+            case mapped.DIRECTION.PARENTS:
+                nodes = opts.recursive ? this.getParents(opts) : [ this._parent ];
+                break;
+            case mapped.DIRECTION.SIBLINGS:
+                nodes = this.getSiblings();
+                break;
+            case mapped.DIRECTION.CHILDREN:
+                nodes = this[mapped.TREE_KEY.SHARED.NESTED];
+                break;
+        }
+
+        let responses = [ ];
+
+        for (const node of nodes) {
+            let response;
+
+            if (opts.ordered) {
+                response = await callback(node);
+
+                if (response === mapped.INTERNAL_OPERATION.BREAK) {
                     break;
+                } else if ((direction === mapped.DIRECTION.CHILDREN) && (response === mapped.INTERNAL_OPERATION.STRIDE)) {
+                    continue;
                 }
             } else {
-                if (common.isNullish(opts.predicate) || !opts.predicate(response)) {
-                    break;
-                }
+                response = callback(node);
+            }
+
+            responses.push(response);
+
+            if ((direction === mapped.DIRECTION.CHILDREN) && opts.recursive) {
+                responses.push(await node._forEach(callback, opts));
             }
         }
+
+        if (!opts.ordered) {
+            responses = await Promise.all(responses);
+        }
+
+        return responses;
+    }
+
+    async forParents(callback, opts = { }) {
+        opts.ordered   = opts.ordered   ?? true;
+        opts.recursive = opts.recursive ?? false;
+
+        return this._forEach(mapped.DIRECTION.PARENTS, callback, { recursive: opts.recursive, ordered: opts.ordered });
+    }
+
+    async forSiblings(callback, opts = { }) {
+        opts.ordered = opts.ordered ?? true;
+
+        return this._forEach(mapped.DIRECTION.SIBLINGS, callback, { ordered: opts.ordered });
+    }
+
+    async forNested(callback, opts = { }) {
+        opts.recursive = opts.recursive ?? false;
+        opts.ordered   = opts.ordered   ?? true;
+
+        return this._forEach(mapped.DIRECTION.CHILDREN, callback, { recursive: opts.recursive, ordered: opts.ordered });
     }
 }

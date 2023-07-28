@@ -13,6 +13,7 @@ export const APP = Object.freeze({
 });
 
 export const global = {
+    scriptname: 'Recipe.tri',
     flags: {
         clear: false,
         exit:  false
@@ -25,12 +26,9 @@ export const global = {
             './sinks'
         ]
     },
-    log_level:      'info',
-    null_artifacts: false
+    log_level: 'info',
 };
 global.defaults = Object.freeze(deepCopy(global));
-
-export const varmap = [ ];
 
 export const REGEX = Object.freeze({
     SYMBOL: '[~!@$%^&*()=\\[\\]{}|;:,<>?\\/]',
@@ -45,6 +43,7 @@ export const TOKEN_KEY = Object.freeze({
 
 export const TREE_KEY = Object.freeze({
     ASTREE: {
+        LABEL:      'label',
         EXPRESSION: 'expression',
         OPERATION:  'operation',
         VALUE: {
@@ -66,11 +65,14 @@ export const EXPRESSION_TYPE = Object.freeze({
 });
 
 export const GENERAL_SYNTAX = Object.freeze({
+    LABEL_START:     '(',
+    LABEL_END:       ')',
     EXPRESSION_MARK: '@',
     MAPPING_MARK:    '$',
     STORAGE_MARK:    '@',
     FUNCTION_START:  '(',
     FUNCTION_END:    ')',
+    FUNCTION_ALT:  '~',
     KEYVALUE_START:  '[',
     KEYVALUE_END:    ']',
     ASSIGNMENT:      '=',
@@ -110,18 +112,15 @@ export const EXPRESSION = Object.freeze({
     INVERSE_RECURSIVE_LOOKBEHIND:            '!<<',
     INVERSE_LOOKAROUND:                      '!<>',
     FORWARD_TRANSITION:                      '/',
-    CHAINED_FORWARD_TRANSITION:              '/~',
     RECURSIVE_FORWARD_TRANSITION:            '//',
     BACKWARD_TRANSITION:                     '%',
-    CHAINED_BACKWARD_TRANSITION:             '%~',
     RECURSIVE_BACKWARD_TRANSITION:           '%%',
+    SIDEWARD_TRANSITION:                     '%/',
     INCLUSIVE_FORWARD_TRANSITION:            '&/',
-    INCLUSIVE_CHAINED_FORWARD_TRANSITION:    '&/~',
     INCLUSIVE_RECURSIVE_FORWARD_TRANSITION:  '&//',
     INCLUSIVE_BACKWARD_TRANSITION:           '&%',
-    INCLUSIVE_CHAINED_BACKWARD_TRANSITION:   '&%~',
     INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION: '&%%',
-    XOR_LOW_PRECEDENCE:                      '^^',
+    INCLUSIVE_SIDEWARD_TRANSITION:           '&%/',
     OR_LOW_PRECEDENCE:                       '||',
     TERNARY_LOW_PRECEDENCE_1:                '??',
     TERNARY_LOW_PRECEDENCE_2:                '::',
@@ -173,17 +172,15 @@ export const PRECEDENCE = Object.freeze({
     '?':   6,
     ':':   6,
     '/':   7,
-    '/~':  7,
     '//':  7,
     '%':   7,
-    '%~':  7,
     '%%':  7,
+    '%/':  7,
     '&/':  7,
-    '&/~': 7,
     '&//': 7,
     '&%':  7,
-    '&%~': 7,
     '&%%': 7,
+    '&%/': 7,
     '^^':  8,
     '||':  9,
     '??':  10,
@@ -192,37 +189,45 @@ export const PRECEDENCE = Object.freeze({
 
 export const OPERATION = Object.freeze({
     NOP:                       'tridy',
-    APPEND_MODULE:             'new',
-    PRECEDE_MODULE:            'head',
-    SUCCEED_MODULE:            'tail',
-    OVERWRITE_MODULE:          'write',
-    EDIT_MODULE:               'put',
-    DELETE_MODULE:             'delete',
+    APPEND_STORAGE:            'new',
+    PRECEDE_STORAGE:           'head',
+    SUCCEED_STORAGE:           'tail',
+    OVERWRITE_STORAGE:         'write',
+    EDIT_STORAGE:              'put',
+    DELETE_STORAGE:            'delete',
     EDIT_METADATA:             'set',
     DELETE_METADATA:           'unset',
     DECLARE_VARIABLE:          'let',
     EDIT_VARIABLE:             'var',
     BLOCK:                     'do',
-    CONDITION_SUCCESS:         'if',
-    CONDITION_FAILURE:         'unless',
-    LOOP:                      'for',
-    CONTROL_SKIP_TO_LABEL:     'skipto',
-    CONTROL_LABEL:             'label',
+    CONDITION_BASIC:           'if',
+    CONDITION_EXISTENCE:       'ifone',
+    CONDITION_UNIVERSAL:       'ifall',
+    CONTROL_BREAK:             'break',
+    CONTROL_LOOP_STRIDE:       'stride',
+    CONTROL_LOOP_CONTINUE:     'continue',
+    CONTROL_PROCEDURE_EXIT:    'return',
+    CONTROL_EXIT:              'exit',
     PROCEDURE_CREATE_VIRTUAL:  'define',
     PROCEDURE_INVOKE_VIRTUAL:  'call',
     PROCEDURE_INVOKE_PHYSICAL: 'import',
-    OUTPUT_MODULE:             'export',
+    OUTPUT_STORAGE:            'export',
     CHANGE_CONTEXT:            '@',
     CONSOLE_CLEAR_OUTPUT:      'clear',
     CONSOLE_EXIT:              'exit'
 });
 
+export const INTERNAL_OPERATION = Object.freeze({
+    BREAK:    Symbol('break'),
+    STRIDE:   Symbol('stride'),
+    CONTINUE: Symbol('continue')
+});
+
 export const JAVASCRIPT_TO_TRIDY_VALUE = Object.freeze({
     true:      'true',
     false:     'false',
-    NaN:       'artifact',
     null:      'null',
-    undefined: 'empty',
+    undefined: 'empty'
 });
 
 /**
@@ -243,4 +248,10 @@ export const TRIDY_TO_JAVASCRIPT_VALUE = Object.freeze({
     null:      SPECIAL_VALUE.NULL,
     empty:     SPECIAL_VALUE.EMPTY,
     undefined: SPECIAL_VALUE.UNDEFINED
+});
+
+export const DIRECTION = Object.freeze({
+    PARENTS:  -1,
+    SIBLINGS: 0,
+    CHILDREN: 1
 });

@@ -1,15 +1,21 @@
 import { isNullish, setUnlessNullish } from '../../common.js';
 import { EXPRESSION_TYPE }             from '../../mapped.js';
 
+import { Token } from '../stage-1_lexing/Token.js';
+
 export class ExpressionNode {
     constructor(a, opts = { }) {
-        this.a = a;
+        opts.op   = opts.op   ?? null;
+        opts.b    = opts.b    ?? null;
+        opts.c    = opts.c    ?? null;
+        opts.type = opts.type ?? EXPRESSION_TYPE.TAG;
+
+        this.a    = a;
+        this.type = opts.type;
         
         setUnlessNullish(this, 'op', opts.op);
         setUnlessNullish(this, 'b',  opts.b);
         setUnlessNullish(this, 'c',  opts.c);
-
-        this.type = opts.type ?? EXPRESSION_TYPE.TAG;
     }
 
     isTerminal() {

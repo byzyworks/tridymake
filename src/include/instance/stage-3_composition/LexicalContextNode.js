@@ -1,6 +1,6 @@
 import { SyntaxError } from '../../error.js';
 
-export class LexicalNode {
+export class LexicalContextNode {
     constructor(opts = { }) {
         opts.parent = opts.parent ?? null;
 

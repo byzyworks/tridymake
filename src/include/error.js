@@ -13,19 +13,27 @@ export class BaseError extends Error {
     }
 }
 
+export class ProgramError extends BaseError {
+    constructor(description) {
+        logger.debug('Program Error: ' + description);
+
+        super('A fatal exception has occurred.', { is_warning: false, is_fatal: true });
+    }
+}
+
 export class SyntaxError extends BaseError {
-    constructor(description, opts) {
+    constructor(description) {
         description = 'Syntax Error: ' + description;
 
-        super(description, opts);
+        super(description, { is_warning: false, is_fatal: false });
     }
 }
 
 export class FunctionError extends BaseError {
-    constructor(description, opts) {
+    constructor(description) {
         description = 'Function Error: ' + description;
 
-        super(description, opts);
+        super(description, { is_warning: false, is_fatal: false });
     }
 }
 

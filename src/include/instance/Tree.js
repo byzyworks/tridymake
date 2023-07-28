@@ -323,9 +323,9 @@ export class Tree {
                 const tested = new Tree(this.getPosValue());
                 const action = callback(tested);
 
-                if (action === 'break') {
+                if (action === mapped.INTERNAL_OPERATION.BREAK) {
                     break;
-                } else if (action === 'continue') {
+                } else if (action === mapped.INTERNAL_OPERATION.STRIDE) {
                     continue;
                 }
 
@@ -336,36 +336,31 @@ export class Tree {
         this.leavePos();
     }
 
-    async traverseSerial(nest_key, callback) {
+    async traverse(nest_key, callback, opts = { }) {
+        opts.ordered = opts.ordered ?? true;
+
+        const responses = [ ];
+
         this.enterPos(nest_key);
         if (!this.isPosEmpty()) {
             this.enterPos(0);
             while (!this.isPosUndefined()) {
                 const tested = new Tree(this.getPosValue());
-                const action = await callback(tested);
+                let   response;
 
-                if (action === 'break') {
-                    break;
-                } else if (action === 'continue') {
-                    continue;
+                if (opts.ordered) {
+                    response = await callback(tested);
+
+                    if (response === mapped.INTERNAL_OPERATION.BREAK) {
+                        break;
+                    } else if (response === mapped.INTERNAL_OPERATION.STRIDE) {
+                        continue;
+                    }
+                } else {
+                    response = callback(tested);
                 }
 
-                this.nextItem();
-            }
-            this.leavePos();
-        }
-        this.leavePos();
-    }
-
-    async traverseParallel(nest_key, callback) {
-        const promises = [ ];
-
-        this.enterPos(nest_key);
-        if (!this.isPosEmpty()) {
-            this.enterPos(0);
-            while (!this.isPosUndefined()) {
-                const tested = new Tree(this.getPosValue());
-                promises.push(callback(tested));
+                responses.push(response);
 
                 this.nextItem();
             }
@@ -373,7 +368,11 @@ export class Tree {
         }
         this.leavePos();
 
-        await Promise.all(promises);
+        if (!opts.ordered) {
+            await Promise.all(responses);
+        }
+
+        return responses;
     }
 
     getRaw() {

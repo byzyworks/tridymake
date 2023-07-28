@@ -5,7 +5,6 @@ import * as mapped from '../mapped.js';
 import { List } from '../instance/List.js';
 import { Tree } from '../instance/Tree.js';
 
-import { Artifact }       from '../instance/stage-2_parsing/Artifact.js';
 import { ExpressionNode } from '../instance/stage-2_parsing/ExpressionNode.js';
 import { FunctionNode }   from '../instance/stage-2_parsing/FunctionNode.js';
 import { OperationNode }  from '../instance/stage-2_parsing/OperationNode.js';
@@ -199,20 +198,8 @@ export class SyntaxParser {
         
         for (const keyword in mapped.TRIDY_TO_JAVASCRIPT_VALUE) {
             if (case_insensitive_word === keyword) {
-                /**
-                 * Coerced at the syntax stage so multiple keys assigned the same unique artifact in one statement do not receive a different one.
-                 * The artifact may be duplicated to one or more keys at this point, so distinguishing statement-by-statement after becomes impossible.
-                 * This is also because an artifact is effectively meant to stand in as a function call signature, 
-                 * where the result may differ by call, but the call itself, including the function name and arguments, is always the same.
-                 * Since functional artifacts are like this, it equivalently makes sense to resolve a direct reference to 'artifact' at the syntax stage.
-                 */
-
                 return mapped.TRIDY_TO_JAVASCRIPT_VALUE[case_insensitive_word];
             }
-        }
-
-        if (case_insensitive_word === 'artifact') {
-            return new Artifact();
         }
 
         if (!isNaN(word)) {
@@ -329,7 +316,18 @@ export class SyntaxParser {
 
         this._tokens.next();
 
-        return new FunctionNode(name, { args: args });
+        const alt = null;
+
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.FUNCTION_ALT)) {
+            this._tokens.next();
+
+            alt = this._readWhileStringFeed();
+            if (alt === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
+            }
+        }
+
+        return new FunctionNode(name, { args: args, alt: alt });
     }
 
     _readWhileMapping() {
@@ -409,37 +407,6 @@ export class SyntaxParser {
         this._tokens.next();
 
         this._handleExpressionOperation();
-
-        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EXPRESSION_MARK)) {
-            this._tokens.next();
-
-            if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_START)) {
-                this._tokens.next();
-    
-                this._handleKeyValueOperation();
-    
-                if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_END)) {
-                    this._handleUnexpected({ expected: this._DEBUG_MESSAGE.KEYVALUE.END });
-                }
-    
-                this._tokens.next();
-            }
-        }
-    }
-
-    _handleWordExpressionLoopOperation() {
-        this._handleWordOperation();
-
-        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.EXPRESSION_MARK)) {
-            this._handleExpressionLoopOperation();
-        } else {
-            const exp = this._readWhileStringFeed();
-            if (exp === this._EMPTY_RETURN) {
-                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.STRING });
-            }
-
-            this._astree.enterSetAndLeave(mapped.TREE_KEY.ASTREE.EXPRESSION, exp);
-        }
     }
 
     _handleKeyOperation() {
@@ -567,11 +534,8 @@ export class SyntaxParser {
              * A default tag is only applied after the metadata is applied, since the user may explicitly have that same tag as metadata and give it a different value.
              * e.g. "new a [a = 5];".
              * Hence, the default tag doesn't override anything the user provides.
-             * Explicit artifacts are exceptions since they are effectively still just random strings.
              */
-            if (!(data instanceof Artifact)) {
-                default_tag = true;
-            }
+            default_tag = true;
         }
 
         if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.KEYVALUE_START)) {
@@ -598,6 +562,25 @@ export class SyntaxParser {
         }
     }
 
+    _handleOptionalLabel() {
+        if (this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.LABEL_START)) {
+            this._tokens.next();
+
+            const label = this._readWord({ force_string: true });
+            if (label === this._EMPTY_RETURN) {
+                this._handleUnexpected({ expected: this._DEBUG_MESSAGE.WORD });
+            }
+
+            this._astree.enterSetAndLeave(mapped.TREE_KEY.ASTREE.LABEL, label);
+
+            if (!this._tokens.peek().is(null, mapped.GENERAL_SYNTAX.LABEL_END)) {
+                this._handleUnexpected({ expected: mapped.GENERAL_SYNTAX.LABEL_END });
+            }
+
+            this._tokens.next();
+        }
+    }
+
     _handleOperation() {
         const current  = this._tokens.peek();
         const op_token = current.to(current.type, current.value.toLowerCase());
@@ -608,17 +591,14 @@ export class SyntaxParser {
 
         this._astree.setPosValue(new OperationNode({ operation: op_token.value }));
 
-        /**
-         * CHANGE_CONTEXT is mapped to '@', which is a symbol for expressions in general.
-         * This is done as a shortcut for the user (to not need to type an additional operation name in).
-         * However, parsing this symbol should be done elsewhere to remain consistent with the for-loop parsing function, which also uses it.
-         */
-        if (!op_token.is(null, mapped.OPERATION.CHANGE_CONTEXT)) {
-            this._tokens.next();
-        }
+        this._tokens.next();
 
         if (op_token.isConsoleOperationToken() && (this._interactive === false)) {
             this._handleUnexpected({ description: `The operation ${op_token.value} is not useable outside of an interactive context.` });
+        }
+
+        if (!op_token.isBlockOperationToken()) {
+            this._handleOptionalLabel();
         }
 
         if (op_token.isDataMetadataSyntaxOperationToken()) {
@@ -627,8 +607,6 @@ export class SyntaxParser {
             this._handleKeyValueOperation();
         } else if (op_token.isKeySyntaxOperationToken()) {
             this._handleKeyOperation();
-        } else if (op_token.isWordExpressionLoopSyntaxOperationToken()) {
-            this._handleWordExpressionLoopOperation();
         } else if (op_token.isExpressionLoopSyntaxOperationToken()) {
             this._handleExpressionLoopOperation();
         } else if (op_token.isExpressionOnlySyntaxOperationToken()) {

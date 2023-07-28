@@ -80,7 +80,6 @@ export class Token {
             this.is(null, mapped.EXPRESSION.AND) ||
             this.is(null, mapped.EXPRESSION.XOR) ||
             this.is(null, mapped.EXPRESSION.OR) ||
-            this.is(null, mapped.EXPRESSION.XOR_LOW_PRECEDENCE) ||
             this.is(null, mapped.EXPRESSION.OR_LOW_PRECEDENCE)
         ;
     }
@@ -115,25 +114,33 @@ export class Token {
         ;
     }
 
-    isLookaroundOperatorExpressionToken() {
+    isLookaroundNestedOperatorExpressionToken() {
         return false ||
             this.is(null, mapped.EXPRESSION.LOOKAROUND) ||
             this.is(null, mapped.EXPRESSION.INVERSE_LOOKAROUND)
         ;
     }
 
+    isInverseNonTransitiveNestedOperatorExpressionToken() {
+        return false ||
+            this.is(null, mapped.EXPRESSION.INVERSE_LOOKAHEAD) ||
+            this.is(null, mapped.EXPRESSION.INVERSE_RECURSIVE_LOOKAHEAD) ||
+            this.is(null, mapped.EXPRESSION.INVERSE_LOOKBEHIND) ||
+            this.is(null, mapped.EXPRESSION.INVERSE_RECURSIVE_LOOKBEHIND) ||
+            this.is(null, mapped.EXPRESSION.INVERSE_LOOKAROUND)
+    }
+
     isNonTransitiveNestedOperatorExpressionToken() {
         return false ||
             this.isLookaheadNestedOperatorExpressionToken() ||
-            this.isLookbehindNestedOperatorExpressionToken()
+            this.isLookbehindNestedOperatorExpressionToken() ||
+            this.isLookaroundNestedOperatorExpressionToken()
         ;
     }
 
     isRecursiveForwardTransitiveNestedOperatorExpressionToken() {
         return false ||
-            this.is(null, mapped.EXPRESSION.CHAINED_FORWARD_TRANSITION) ||
             this.is(null, mapped.EXPRESSION.RECURSIVE_FORWARD_TRANSITION) ||
-            this.is(null, mapped.EXPRESSION.INCLUSIVE_CHAINED_FORWARD_TRANSITION) ||
             this.is(null, mapped.EXPRESSION.INCLUSIVE_RECURSIVE_FORWARD_TRANSITION)
         ;
     }
@@ -148,9 +155,7 @@ export class Token {
 
     isRecursiveBackwardTransitiveNestedOperatorExpressionToken() {
         return false ||
-            this.is(null, mapped.EXPRESSION.CHAINED_BACKWARD_TRANSITION) ||
             this.is(null, mapped.EXPRESSION.RECURSIVE_BACKWARD_TRANSITION) ||
-            this.is(null, mapped.EXPRESSION.INCLUSIVE_CHAINED_BACKWARD_TRANSITION) ||
             this.is(null, mapped.EXPRESSION.INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION)
         ;
     }
@@ -160,6 +165,16 @@ export class Token {
             this.is(null, mapped.EXPRESSION.BACKWARD_TRANSITION) ||
             this.is(null, mapped.EXPRESSION.INCLUSIVE_BACKWARD_TRANSITION) ||
             this.isRecursiveBackwardTransitiveNestedOperatorExpressionToken()
+        ;
+    }
+
+    isInclusiveTransitiveNestedOperatorExpressionToken() {
+        return false ||
+            this.is(null, mapped.EXPRESSION.INCLUSIVE_FORWARD_TRANSITION) ||
+            this.is(null, mapped.EXPRESSION.INCLUSIVE_RECURSIVE_FORWARD_TRANSITION) ||
+            this.is(null, mapped.EXPRESSION.INCLUSIVE_BACKWARD_TRANSITION) ||
+            this.is(null, mapped.EXPRESSION.INCLUSIVE_RECURSIVE_BACKWARD_TRANSITION) ||
+            this.is(null, mapped.EXPRESSION.INCLUSIVE_SIDEWARD_TRANSITION)
         ;
     }
 
@@ -177,18 +192,8 @@ export class Token {
         ;
     }
 
-    isChainedNestedOperatorExpressionToken() {
-        return false ||
-            this.is(null, mapped.EXPRESSION.CHAINED_FORWARD_TRANSITION) ||
-            this.is(null, mapped.EXPRESSION.INCLUSIVE_CHAINED_FORWARD_TRANSITION) ||
-            this.is(null, mapped.EXPRESSION.CHAINED_BACKWARD_TRANSITION) ||
-            this.is(null, mapped.EXPRESSION.INCLUSIVE_CHAINED_BACKWARD_TRANSITION)
-        ;
-    }
-
     isRecursiveNestedOperatorExpressionToken() {
         return false ||
-            this.isChainedNestedOperatorExpressionToken() ||
             this.isRecursiveLookaheadNestedOperatorExpressionToken() ||
             this.isRecursiveLookbehindNestedOperatorExpressionToken() ||
             this.isRecursiveForwardTransitiveNestedOperatorExpressionToken() ||
@@ -214,7 +219,7 @@ export class Token {
         return false ||
             this.isBasicBinaryOperatorExpressionToken() ||
             this.isNestedOperatorExpressionToken() ||
-            this.isLookaroundOperatorExpressionToken()
+            this.isLookaroundNestedOperatorExpressionToken()
         ;
     }
 
@@ -275,11 +280,11 @@ export class Token {
 
     isNewModuleOperationToken() {
         return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.APPEND_MODULE) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.PRECEDE_MODULE) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.SUCCEED_MODULE) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OVERWRITE_MODULE) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.EDIT_MODULE)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.APPEND_STORAGE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.PRECEDE_STORAGE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.SUCCEED_STORAGE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OVERWRITE_STORAGE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.EDIT_STORAGE)
         ;
     }
 
@@ -292,14 +297,9 @@ export class Token {
 
     isConditionOperationToken() {
         return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_SUCCESS) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_FAILURE)
-        ;
-    }
-
-    isLoopOperationToken() {
-        return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.LOOP)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_BASIC) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_EXISTENCE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_UNIVERSAL)
         ;
     }
 
@@ -307,7 +307,6 @@ export class Token {
         return false ||
             this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.BLOCK) ||
             this.isConditionOperationToken() ||
-            this.isLoopOperationToken() ||
             this.is(mapped.TOKEN_KEY.WORD,   mapped.OPERATION.PROCEDURE_CREATE_VIRTUAL) ||
             this.is(mapped.TOKEN_KEY.SYMBOL, mapped.OPERATION.CHANGE_CONTEXT)
         ;
@@ -315,8 +314,9 @@ export class Token {
 
     isLabelOperationToken() {
         return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_SKIP_TO_LABEL) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_LABEL)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_BREAK) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_LOOP_STRIDE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_LOOP_CONTINUE)
         ;
     }
 
@@ -351,12 +351,14 @@ export class Token {
     isControlOperationToken() {
         return false ||
             this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.NOP) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.DELETE_MODULE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.DELETE_STORAGE) ||
             this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.EDIT_METADATA) ||
             this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.DELETE_METADATA) ||
             this.isVariableOperationToken() ||
             this.isLabelOperationToken() ||
             this.isProcedureCallOperationToken() ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_PROCEDURE_EXIT) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONTROL_EXIT) ||
             this.isConsoleOperationToken()
         ;
     }
@@ -378,14 +380,14 @@ export class Token {
 
     isSinkModeOperationToken() {
         return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OUTPUT_MODULE)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OUTPUT_STORAGE)
         ;
     }
 
     isDataMetadataSyntaxOperationToken() {
         return false ||
             this.isNewModuleOperationToken() ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OUTPUT_MODULE)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.OUTPUT_STORAGE)
         ;
     }
 
@@ -416,15 +418,16 @@ export class Token {
 
     isExpressionOnlySyntaxOperationToken() {
         return false ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_SUCCESS) ||
-            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_FAILURE)
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_BASIC) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_EXISTENCE) ||
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.CONDITION_UNIVERSAL)
         ;
     }
 
     isWordOnlySyntaxOperationToken() {
         return false ||
             this.isLabelOperationToken() ||
-            this.isVirtualProcedureOperationToken()
+            this.is(mapped.TOKEN_KEY.WORD, mapped.OPERATION.PROCEDURE_INVOKE_VIRTUAL)
         ;
     }
 
